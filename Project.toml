@@ -3,6 +3,12 @@ uuid = "bc27e32f-14b0-4d32-98d5-b88f38cd41e7"
 authors = ["Jose Alquicira-Hernandez"]
 version = "1.0.0-DEV"
 
+[deps]
+CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+MixedModels = "ff71e718-51f3-5ec2-a782-8ffcbfa3c316"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
 [compat]
 julia = "1.6.7"
 
