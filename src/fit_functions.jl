@@ -12,7 +12,7 @@ end
 function sample_index(rng, n_cells)
 
     index = collect(1:n_cells)
-    index = sample(rng, index, length(index); replace=true)
+    index = StatsBase.sample(rng, index, length(index); replace=true)
     return index
 
 end
@@ -28,7 +28,3 @@ function fit_lmm(rng, md, form, n; batch_size = 30)
     return res_boot
 
 end
-
-export fit_model
-export sample_index
-export fit_lmm
