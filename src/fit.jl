@@ -9,14 +9,6 @@ function fit_model(form, resample)
 end
 
 
-function sample_index(rng, n_cells)
-
-    index = collect(1:n_cells)
-    index = StatsBase.sample(rng, index, length(index); replace=true)
-    return index
-
-end
-
 
 function fit_lmm(rng, md, form, n; batch_size = 30)
 
