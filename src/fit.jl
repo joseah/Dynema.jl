@@ -10,7 +10,7 @@ end
 
 
 
-function fit_lmm(rng, md, form, n; batch_size = 30)
+function boot_model(rng, md, form, n; batch_size = 30)
 
     res_boot = pmap(1:n, batch_size = batch_size) do i 
     index = sample_index(rng, nrow(md))
