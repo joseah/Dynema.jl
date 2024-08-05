@@ -10,7 +10,7 @@ Parameters
 
 
 function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-                  geno::AbstractDataFrame, snp_index::Integer, target_params::Vector{AbstractVector}, 
+                  geno::AbstractDataFrame, snp_index::Integer, target_params::Vector{Symbol}, 
                   n::Integer)
 
     # Create copy of covariate and response data
