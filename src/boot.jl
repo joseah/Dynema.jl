@@ -1,5 +1,5 @@
 """
-    boot_model(rng, form, data, geno, geno_index, target_params, n)
+    boot_snp(rng, form, data, geno, geno_index, target_params, n)
 
 Fits linear mixed model `n` times for a given SNP.
 
