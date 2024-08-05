@@ -9,9 +9,9 @@ using Random
 using StatsModels
 
 # Write your package code here.
-export fit_model
+export boot_model
 export sample_index
-export fit_lmm
+export fit_model
 export calculate_pvalue
 export count_nonzeros
 export boot_snp
