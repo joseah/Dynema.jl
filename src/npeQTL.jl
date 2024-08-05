@@ -6,6 +6,7 @@ using StatsBase
 using Distributed
 using DataFrames
 using Random
+using Statsmodels
 
 # Write your package code here.
 export fit_model
