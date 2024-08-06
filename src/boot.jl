@@ -1,17 +1,28 @@
 """
-    boot_snp(rng, form, data, geno, geno_index, target_params, n)
+    boot_snp(rng, f, data, geno, snp_index, n)
 
-Fits linear mixed model `n` times for a given SNP.
+Fits linear mixed model `n` times for a given SNP using sampling with replacement
+at the observation level.
 
-Parameters
+Parameters:
+
+- `rng``: Random number generator
+- `f``: Formula
+- `data``: Dataframe containing response and covariates
+- `geno``: Dataframe containing genotype data:
+    + First column: donor id
+    + Remaining columns: Each SNPs with respective allele dosages
+
+    Both `data` and `geno` should be coded at the observational level.
+
+- `n`: Number of bootstrap replicates
 
 
 """
 
 
 function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-                  geno::AbstractDataFrame, snp_index::Integer, target_params::Vector{Symbol}, 
-                  n::Integer)
+                  geno::AbstractDataFrame, snp_index::Integer, n::Integer)
 
     # Create copy of covariate and response data
     set = deepcopy(data)
@@ -27,13 +38,7 @@ function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     # Gather all betas from all bootstrap fits
     boot = reduce(vcat, boot)
     
-    # Return bootstrapping results for parameters of interest
-    if typeof(target_params) == Symbol
-        boot = DataFrame([boot[:, target_params]], [target_params])
-    else
-        boot = boot[:, target_params]
-    end
-
+    # Return bootstrapping results
     return boot
 
 end
