@@ -107,7 +107,7 @@ end
 
 """
 
-function pass_boot(res::AbstractDataFrame, n::Integer, boot_sizes::Vector{Integer}, target_params::Vector{Symbol})
+function pass_boot(res::AbstractDataFrame, n::Integer, boot_sizes::Vector{Int64}, target_params::Vector{Symbol})
     
     # Create bootstrap iteration symbols
     i = n .>=  boot_sizes
@@ -148,7 +148,7 @@ end
 
 
 function map_locus(f::FormulaTerm, data::AbstractDataFrame, 
-                    geno::AbstractDataFrame, n::Vector{Integer}, target_params::Vector{Symbol})
+                    geno::AbstractDataFrame, n::Vector{Int64}, target_params::Vector{Symbol})
 
     # Create indivator vector to specify which SNPs to test for
     i = ncol(geno) - 1
