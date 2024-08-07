@@ -107,7 +107,7 @@ end
 
 """
 
-function pass_boot(res::AbstractDataFrame, n::integer, boot_sizes::Vector{Integer}, target_params::Vector{Symbol})
+function pass_boot(res::AbstractDataFrame, n::Integer, boot_sizes::Vector{Integer}, target_params::Vector{Symbol})
     
     # Create bootstrap iteration symbols
     i = n .>=  boot_sizes
