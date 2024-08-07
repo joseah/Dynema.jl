@@ -18,6 +18,7 @@ export count_nonzeros
 export boot_snp
 export boot_locus
 export pass_boot
+export map_locus
 
 include("fit.jl")
 include("sampling.jl")

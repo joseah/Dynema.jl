@@ -64,7 +64,8 @@ Performs locus-wide eQTL mapping for a set of SNPs.
 
 """
 
-function boot_locus(rng, f, data, geno, snp_set, n)
+function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
+    geno::AbstractDataFrame, snp_set, n::Integer)
 
     println("Bootstrap n = $n")
 
@@ -90,7 +91,6 @@ end
 """
     pass_boot(rng, form, md, geno, snp_set, n_boot)
 
-Performs locus-wide eQTL mapping for a set of SNPs.
 
 - `rng``: Random number generator
 - `f``: Formula
@@ -107,8 +107,7 @@ Performs locus-wide eQTL mapping for a set of SNPs.
 
 """
 
-
-function pass_boot(res, n, boot_sizes, target_params)
+function pass_boot(res::AbstractDataFrame, n::integer, boot_sizes::Vector{Integer}, target_params::Vector{Symbol})
     
     # Create bootstrap iteration symbols
     i = n .>=  boot_sizes
@@ -142,5 +141,39 @@ function pass_boot(res, n, boot_sizes, target_params)
     end
 
     return pass
+
+end
+
+
+
+
+function map_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
+                    geno::AbstractDataFrame, n::Vector{Integer}, target_params::Vector{Symbol})
+
+    # Create indivator vector to specify which SNPs to test for
+    i = ncol(geno) - 1
+    pass = 1:i
+
+    # Extract gene names ancd create Dataframe to store all results
+    snp_names = names(geno)[2:end]
+    res = DataFrame(snp = snp_names)
+
+    # For each bootstrap round, bootstrap model across all specified SNPs.
+    # The list of SNPs will change depending on whether they keep being 
+    # significant after each bootstrap round.
+
+    for n_i in n
+        current_boot = Symbol("n_" * string(n_i))
+        # Performs locus-wide eQTL mapping for the specified set of SNPs.
+        res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i)
+        # Add current results to global results
+        res = leftjoin(res, res_boot, on = :snp, order = :left)
+        # Substitute missing values for non-significant SNPs with emoty dataframes 
+        res[!, current_boot] = replace(res[:, current_boot], missing => DataFrame())
+        # Test which SNPs will be tested for in the next bootstrapping iteration
+        pass = findall(pass_boot(res, n_i, n, target_params))
+        println("N. SNPs pass = ", length(pass))
+        println("-------------")
+    end
 
 end
