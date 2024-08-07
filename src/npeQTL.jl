@@ -7,6 +7,7 @@ using Distributed
 using DataFrames
 using Random
 using StatsModels
+using ProgressMeter
 
 # Write your package code here.
 export boot_model
@@ -15,6 +16,8 @@ export fit_model
 export calculate_pvalue
 export count_nonzeros
 export boot_snp
+export boot_locus
+export pass_boot
 
 include("fit.jl")
 include("sampling.jl")
