@@ -74,7 +74,7 @@ function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
 
 
     # Test each SNP specified in `snp_set`
-    boot_res = @showprogress map(snp_set) do snp_index
+    boot_res = @showprogress pmap(snp_set) do snp_index
         boot = boot_snp(rng, f, data, geno, snp_index + 1, n)
     end
 
