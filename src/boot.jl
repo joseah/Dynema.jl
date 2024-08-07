@@ -176,4 +176,6 @@ function map_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
         println("-------------")
     end
 
+    return res
+
 end
