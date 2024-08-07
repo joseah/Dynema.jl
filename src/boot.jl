@@ -147,7 +147,7 @@ end
 
 
 
-function map_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
+function map_locus(f::FormulaTerm, data::AbstractDataFrame, 
                     geno::AbstractDataFrame, n::Vector{Integer}, target_params::Vector{Symbol})
 
     # Create indivator vector to specify which SNPs to test for
