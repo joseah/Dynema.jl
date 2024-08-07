@@ -66,10 +66,10 @@ Performs locus-wide eQTL mapping for a set of SNPs.
 
 function boot_locus(rng, f, data, geno, snp_set, n)
 
-    println("Bootstrap n = $n_boot")
+    println("Bootstrap n = $n")
 
     # Create symbol for current bootstrap iteration
-    boot_symbol = Symbol("n_" * string(n_boot))
+    boot_symbol = Symbol("n_" * string(n))
 
 
     # Test each SNP specified in `snp_set`
