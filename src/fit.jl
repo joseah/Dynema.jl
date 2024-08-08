@@ -12,7 +12,7 @@ end
 
 function boot_model(rng, md, form, n)
 
-    res_boot = map(1:n, batch_size = batch_size) do i 
+    res_boot = map(1:n) do i 
     index = sample_index(rng, nrow(md))
         fit_model(form, md[index, :])
     end
