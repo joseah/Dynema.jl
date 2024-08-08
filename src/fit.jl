@@ -10,9 +10,9 @@ end
 
 
 
-function boot_model(rng, md, form, n; batch_size = 30)
+function boot_model(rng, md, form, n)
 
-    res_boot = pmap(1:n, batch_size = batch_size) do i 
+    res_boot = map(1:n, batch_size = batch_size) do i 
     index = sample_index(rng, nrow(md))
         fit_model(form, md[index, :])
     end
