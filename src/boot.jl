@@ -76,13 +76,13 @@ function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     if by_snp
         # Test each SNP specified in `snp_set`
         boot_res = @showprogress pmap(snp_set) do snp_index
-            boot = boot_snp(rng, f, data, geno, snp_index + 1, n, by_snp = true)
+            boot = boot_snp(rng, f, data, geno, snp_index + 1, n, true)
         end
 
     else
         # Test each SNP specified in `snp_set`
         boot_res = @showprogress map(snp_set) do snp_index
-            boot = boot_snp(rng, f, data, geno, snp_index + 1, n, by_snp = false)
+            boot = boot_snp(rng, f, data, geno, snp_index + 1, n, false)
         end
 
     end
@@ -175,9 +175,9 @@ function map_locus(f::FormulaTerm, data::AbstractDataFrame,
         current_boot = Symbol("n_" * string(n_i))
         # Performs locus-wide eQTL mapping for the specified set of SNPs.
         if n_i < 10_000
-            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, by_snp = true)
+            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, true)
         else
-            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, by_snp = false)
+            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, false)
         end
         # Add current results to global results
         res = leftjoin(res, res_boot, on = :snp, order = :left)
