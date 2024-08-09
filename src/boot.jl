@@ -87,9 +87,6 @@ function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
 
     end
 
-
-
-
     # Gather results and return
     snp_names = names(geno)[snp_set .+ 1]
     boot_res = DataFrame(snp = snp_names, boot_n = boot_res)
@@ -177,7 +174,11 @@ function map_locus(f::FormulaTerm, data::AbstractDataFrame,
     for n_i in n
         current_boot = Symbol("n_" * string(n_i))
         # Performs locus-wide eQTL mapping for the specified set of SNPs.
-        res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i)
+        if n_i < 10_000
+            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, by_snp = trye)
+        else
+            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, by_snp = false)
+        end
         # Add current results to global results
         res = leftjoin(res, res_boot, on = :snp, order = :left)
         # Substitute missing values for non-significant SNPs with emoty dataframes 
