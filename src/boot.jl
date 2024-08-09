@@ -22,7 +22,7 @@ Parameters:
 
 
 function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-                  geno::AbstractDataFrame, snp_index::Integer, n::Integer)
+                  geno::AbstractDataFrame, snp_index::Integer, n::Integer, by_snp::Bool=true)
 
     # Create copy of covariate and response data
     set = deepcopy(data)
@@ -33,7 +33,7 @@ function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     set[!, :G] = geno[:, snp_index]
 
     # Fit `n_boot` models using sampling with replacement
-    boot = boot_model(rng, set, f, n)
+    boot = boot_model(rng, set, f, n, by_snp)
 
     # Gather all betas from all bootstrap fits
     boot = reduce(vcat, boot)
@@ -65,7 +65,7 @@ Performs locus-wide eQTL mapping for a set of SNPs.
 """
 
 function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-    geno::AbstractDataFrame, snp_set, n::Integer)
+    geno::AbstractDataFrame, snp_set, n::Integer, by_snp::Bool=true)
 
     println("Bootstrap n = $n")
 
@@ -73,10 +73,22 @@ function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     boot_symbol = Symbol("n_" * string(n))
 
 
-    # Test each SNP specified in `snp_set`
-    boot_res = @showprogress pmap(snp_set) do snp_index
-        boot = boot_snp(rng, f, data, geno, snp_index + 1, n)
+    if by_snp
+        # Test each SNP specified in `snp_set`
+        boot_res = @showprogress pmap(snp_set) do snp_index
+            boot = boot_snp(rng, f, data, geno, snp_index + 1, n, by_snp = true)
+        end
+
+    else
+        # Test each SNP specified in `snp_set`
+        boot_res = @showprogress map(snp_set) do snp_index
+            boot = boot_snp(rng, f, data, geno, snp_index + 1, n, by_snp = false)
+        end
+
     end
+
+
+
 
     # Gather results and return
     snp_names = names(geno)[snp_set .+ 1]
