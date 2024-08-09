@@ -175,7 +175,7 @@ function map_locus(f::FormulaTerm, data::AbstractDataFrame,
         current_boot = Symbol("n_" * string(n_i))
         # Performs locus-wide eQTL mapping for the specified set of SNPs.
         if n_i < 10_000
-            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, by_snp = trye)
+            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, by_snp = true)
         else
             res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, by_snp = false)
         end
