@@ -22,7 +22,7 @@ Parameters:
 
 
 function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-                  geno::AbstractDataFrame, snp_index::Integer, n::Integer, by_snp::Bool=true)
+                  geno::AbstractDataFrame, snp_index::Integer, n::Integer)
 
     # Create copy of covariate and response data
     set = deepcopy(data)
@@ -33,7 +33,7 @@ function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     set[!, :G] = geno[:, snp_index]
 
     # Fit `n_boot` models using sampling with replacement
-    boot = boot_model(rng, set, f, n, by_snp)
+    boot = boot_model(rng, set, f, n)
 
     # Gather all betas from all bootstrap fits
     boot = reduce(vcat, boot)
@@ -65,7 +65,7 @@ Performs locus-wide eQTL mapping for a set of SNPs.
 """
 
 function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-    geno::AbstractDataFrame, snp_set, n::Integer, by_snp::Bool=true)
+    geno::AbstractDataFrame, snp_set, n::Integer)
 
     println("Bootstrap n = $n")
 
@@ -73,19 +73,12 @@ function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     boot_symbol = Symbol("n_" * string(n))
 
 
-    if by_snp
-        # Test each SNP specified in `snp_set`
-        boot_res = @showprogress pmap(snp_set) do snp_index
-            boot = boot_snp(rng, f, data, geno, snp_index + 1, n, true)
-        end
-
-    else
-        # Test each SNP specified in `snp_set`
-        boot_res = @showprogress map(snp_set) do snp_index
-            boot = boot_snp(rng, f, data, geno, snp_index + 1, n, false)
-        end
-
+    
+    # Test each SNP specified in `snp_set`
+    boot_res = @showprogress pmap(snp_set) do snp_index
+        boot = boot_snp(rng, f, data, geno, snp_index + 1, n)
     end
+
 
     # Gather results and return
     snp_names = names(geno)[snp_set .+ 1]
@@ -174,11 +167,7 @@ function map_locus(f::FormulaTerm, data::AbstractDataFrame,
     for n_i in n
         current_boot = Symbol("n_" * string(n_i))
         # Performs locus-wide eQTL mapping for the specified set of SNPs.
-        if n_i < 10_000
-            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, true)
-        else
-            res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, false)
-        end
+        res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i)
         # Add current results to global results
         res = leftjoin(res, res_boot, on = :snp, order = :left)
         # Substitute missing values for non-significant SNPs with emoty dataframes 
