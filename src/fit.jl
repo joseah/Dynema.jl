@@ -10,18 +10,11 @@ end
 
 
 
-function boot_model(rng, md, form, n, by_snp)
+function boot_model(rng, md, form, n)
 
-    if by_snp
-        res_boot = map(1:n) do i 
-        index = sample_index(rng, nrow(md))
-            fit_model(form, md[index, :])
-        end
-    else
-        res_boot = pmap(1:n) do i 
-            index = sample_index(rng, nrow(md))
-                fit_model(form, md[index, :])
-        end
+    res_boot = map(1:n) do i 
+    index = sample_index(rng, nrow(md))
+        fit_model(form, md[index, :])
     end
 
     return res_boot
