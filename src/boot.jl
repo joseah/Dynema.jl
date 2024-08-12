@@ -22,7 +22,7 @@ Parameters:
 
 
 function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-                  geno::AbstractDataFrame, snp_index::Integer, n::Integer, type = :two_stage; cluster)
+                  geno::AbstractDataFrame, snp_index::Integer, n::Integer, type::Symbol; cluster)
 
     # Create copy of covariate and response data
     set = deepcopy(data)
@@ -65,7 +65,7 @@ Performs locus-wide eQTL mapping for a set of SNPs.
 """
 
 function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-    geno::AbstractDataFrame, snp_set, n::Integer, type::Symbol = :two_stage; cluster::Symbol)
+    geno::AbstractDataFrame, snp_set, n::Integer, type::Symbol; cluster::Symbol)
 
     println("Bootstrap n = $n")
 
@@ -76,7 +76,7 @@ function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     
     # Test each SNP specified in `snp_set`
     boot_res = @showprogress pmap(snp_set) do snp_index
-        boot = boot_snp(rng, f, data, geno, snp_index + 1, n, :two_stage; cluster = cluster)
+        boot = boot_snp(rng, f, data, geno, snp_index + 1, n, type; cluster = cluster)
     end
 
 

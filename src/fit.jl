@@ -10,7 +10,7 @@ end
 
 
 
-function boot_model(rng::AbstractRNG, md::AbstractDataFrame, f::FormulaTerm, n::Integer, type::Symbol = :two_stage; cluster::Symbol)
+function boot_model(rng::AbstractRNG, md::AbstractDataFrame, f::FormulaTerm, n::Integer, type::Symbol; cluster::Symbol)
 
     res_boot = map(1:n) do i 
     index = resample(rng, md, type; cluster = cluster)

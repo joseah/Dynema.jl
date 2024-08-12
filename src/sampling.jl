@@ -7,7 +7,7 @@ function sample_index(rng::AbstractRNG, n::Integer)
 end
 
 
-function resample(rng::AbstractRNG, data::AbstractDataFrame, type::Symbol = :two_stage; cluster::Symbol)
+function resample(rng::AbstractRNG, data::AbstractDataFrame, type::Symbol; cluster::Symbol)
 
     if type == :obs
 
@@ -48,7 +48,7 @@ function resample(rng::AbstractRNG, data::AbstractDataFrame, type::Symbol = :two
                 cluster_dict_resampled[key] = idx
             end
 
-        boot_id = reduce(vcat, values(cluster_dict_resampled))
+            boot_id = reduce(vcat, values(cluster_dict_resampled))
 
         end
 
