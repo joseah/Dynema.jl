@@ -167,7 +167,7 @@ function map_locus(f::FormulaTerm, data::AbstractDataFrame, geno::AbstractDataFr
     for n_i in n
         current_boot = Symbol("n_" * string(n_i))
         # Performs locus-wide eQTL mapping for the specified set of SNPs.
-        res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, :two_stage; cluster = cluster)
+        res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, type; cluster = cluster)
         # Add current results to global results
         res = leftjoin(res, res_boot, on = :snp, order = :left)
         # Substitute missing values for non-significant SNPs with emoty dataframes 
