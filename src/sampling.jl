@@ -7,51 +7,53 @@ function sample_index(rng::AbstractRNG, n::Integer)
 end
 
 
-function resample(rng::AbstractRNG, data::AbstractDataFrame)
-    index = collect(1:n)
-    index = sample(rng, index, length(index); replace=true)
-    return index
-end
+function resample(rng::AbstractRNG, data::AbstractDataFrame, type::Symbol = :two_stage; cluster::Symbol)
 
+    if type == :obs
 
-function resample(rng::AbstractRNG, data::AbstractDataFrame, type::Symbol = :two_stage; cluster::String)
+        boot_id = sample_index(rng, nrow(data))
 
-    # Extract cluster info for each observation
-    cluster_values = data[:, cluster]
-    # Determine unique cluster labels
-    cluster_levels = unique(cluster_values)
-    # Resample clusters
-    resample_levels = sample(rng, cluster_levels, length(cluster_levels); replace=true)
+    else
 
-    
-    cluster_dict= Dict()
+        # Extract cluster info for each observation
+        cluster_values = data[:, cluster]
+        # Determine unique cluster labels
+        cluster_levels = unique(cluster_values)
+        # Resample clusters
+        resample_levels = sample(rng, cluster_levels, length(cluster_levels); replace=true)
 
-    # Subset observations per cluster
-    for level in resample_levels
+        
+        cluster_dict= Dict()
 
-        idx = findall(cluster_values .== level)
-        cluster_dict[level] = idx
-    
-    end
+        # Subset observations per cluster
+        for level in resample_levels
 
-
-    if type == :cluster
-        boot_id = reduce(vcat, values(cluster_dict))
-    
-    elseif type == :two_stage
-
-        cluster_dict_resampled= Dict()
-        for key in keys(cluster_dict)
-            orig_idx = cluster_dict[key]
-
-            i = sample_index(rng, length(orig_idx))
-            idx = orig_idx[i]
-            cluster_dict_resampled[key] = idx
+            idx = findall(cluster_values .== level)
+            cluster_dict[level] = idx
+        
         end
 
-    boot_id = reduce(vcat, values(cluster_dict_resampled))
+
+        if type == :cluster
+            boot_id = reduce(vcat, values(cluster_dict))
+        
+        elseif type == :two_stage
+
+            cluster_dict_resampled= Dict()
+            for key in keys(cluster_dict)
+                orig_idx = cluster_dict[key]
+
+                i = sample_index(rng, length(orig_idx))
+                idx = orig_idx[i]
+                cluster_dict_resampled[key] = idx
+            end
+
+        boot_id = reduce(vcat, values(cluster_dict_resampled))
+
+        end
 
     end
+
 
     return(boot_id)
 

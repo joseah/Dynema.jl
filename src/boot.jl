@@ -22,7 +22,7 @@ Parameters:
 
 
 function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-                  geno::AbstractDataFrame, snp_index::Integer, n::Integer; type = :two_stage)
+                  geno::AbstractDataFrame, snp_index::Integer, n::Integer, type = :two_stage; cluster)
 
     # Create copy of covariate and response data
     set = deepcopy(data)
@@ -33,7 +33,7 @@ function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     set[!, :G] = geno[:, snp_index]
 
     # Fit `n_boot` models using sampling with replacement
-    boot = boot_model(rng, set, f, n; type = :two_stage)
+    boot = boot_model(rng, set, f, n, :two_stage; cluster = cluster)
 
     # Gather all betas from all bootstrap fits
     boot = reduce(vcat, boot)
@@ -65,7 +65,7 @@ Performs locus-wide eQTL mapping for a set of SNPs.
 """
 
 function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame, 
-    geno::AbstractDataFrame, snp_set, n::Integer; type = :two_stage)
+    geno::AbstractDataFrame, snp_set, n::Integer, type::Symbol = :two_stage; cluster::Symbol)
 
     println("Bootstrap n = $n")
 
@@ -76,7 +76,7 @@ function boot_locus(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     
     # Test each SNP specified in `snp_set`
     boot_res = @showprogress pmap(snp_set) do snp_index
-        boot = boot_snp(rng, f, data, geno, snp_index + 1, n; type= :two_stage)
+        boot = boot_snp(rng, f, data, geno, snp_index + 1, n, :two_stage; cluster = cluster)
     end
 
 
@@ -150,7 +150,7 @@ end
 
 
 function map_locus(f::FormulaTerm, data::AbstractDataFrame, geno::AbstractDataFrame, 
-                   n::Vector{Int64}, target_params::Vector{Symbol}; type::Symbol = :two_stage)
+                   n::Vector{Int64}, target_params::Vector{Symbol}, type::Symbol = :two_stage; cluster = :donor)
 
     # Create indivator vector to specify which SNPs to test for
     i = ncol(geno) - 1
@@ -167,7 +167,7 @@ function map_locus(f::FormulaTerm, data::AbstractDataFrame, geno::AbstractDataFr
     for n_i in n
         current_boot = Symbol("n_" * string(n_i))
         # Performs locus-wide eQTL mapping for the specified set of SNPs.
-        res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i; type = :two_stage)
+        res_boot = boot_locus(MersenneTwister(n_i), f, data, geno, pass, n_i, :two_stage; cluster = cluster)
         # Add current results to global results
         res = leftjoin(res, res_boot, on = :snp, order = :left)
         # Substitute missing values for non-significant SNPs with emoty dataframes 
