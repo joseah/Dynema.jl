@@ -33,7 +33,7 @@ function boot_snp(rng::AbstractRNG, f::FormulaTerm, data::AbstractDataFrame,
     set[!, :G] = geno[:, snp_index]
 
     # Fit `n_boot` models using sampling with replacement
-    boot = boot_model(rng, set, f, n, :two_stage; cluster = cluster)
+    boot = boot_model(rng, set, f, n, type; cluster = cluster)
 
     # Gather all betas from all bootstrap fits
     boot = reduce(vcat, boot)
