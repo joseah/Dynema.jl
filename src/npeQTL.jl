@@ -6,7 +6,7 @@ using StatsBase
 using Distributed
 using DataFrames
 using Random
-using CategoricalArray
+using CategoricalArrays
 using GLM
 using StatsModels
 using LinearAlgebra
