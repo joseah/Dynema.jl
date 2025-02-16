@@ -17,12 +17,10 @@ export nonparametricbootstrap
 export resample!
 export residuals_from_blups
 export inflation_factor
-
 export map_locus_interactions
 export boot_snp
 export calculate_pvalue
 export count_nonzeros
-
 export adjust_phenotype
 
 
