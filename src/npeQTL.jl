@@ -1,13 +1,14 @@
 module npeQTL
 
 using MixedModels
+using MixedModels: fixef!, getθ!
 using StatsBase
 using Distributed
 using DataFrames
 using Random
+using GLM
 using StatsModels
 using LinearAlgebra
-using MixedModels: fixef!, getθ!
 using StaticArrays
 using ProgressMeter
 
