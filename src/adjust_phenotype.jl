@@ -20,10 +20,11 @@ Vector with adjusted phenotype information (deviance residuals).
 """
 
 
-function adjust_phenotype(pheno::AbstractDataFrame, covariates::AbstractDataFrame)
+function adjust_phenotype(pheno::Vector{Int64}, covariates::AbstractDataFrame)
 
     fe_names = names(covariates)
-    pheno_covs = hcat(pheno, covariates)
+    pheno_covs = deepcopy(covariates)
+    pheno_covs[!, :C] = pheno
 
     f = term(:C) ~ sum(term.(fe_names))
 
