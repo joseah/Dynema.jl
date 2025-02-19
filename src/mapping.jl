@@ -1,5 +1,5 @@
 
-function map_locus_interactions(snps::AbstractMatrix, expr::AbstractVector, 
+function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector, 
     contexts::AbstractMatrix, donor::AbstractVector, batch::AbstractVector;
     n::Vector{Int64} = [100, 400, 500, 4000, 5000], main_effect::Bool = false)
     
@@ -7,20 +7,20 @@ function map_locus_interactions(snps::AbstractMatrix, expr::AbstractVector,
 
    # ------------- Validate dimensionality of input data structures ------------- #
 
-    snp_size = size(snps)
-    expr_len = length(expr)
+    geno_size = size(geno)
+    pheno_len = length(pheno)
     contexts_size = size(contexts)
     donor_len = length(donor)
     batch_len = length(batch)
 
 
-    n_obs = Dict(:snp => snp_size[1], :expr => expr_len, 
+    n_obs = Dict(:snp => geno_size[1], :expr => pheno_len, 
                  :contexts => contexts_size[1], :donor => donor_len, 
                  :batch => batch_len)
    
    n_obs_vals  = collect(values(n_obs))
 
-   if(!all(x -> x == n_obs_vals[1], n_obs_vals))
+   if(!all(x -> x == first(n_obs_vals), n_obs_vals))
        
        println("Verify number of observatios of input files")
        println("Number of observations per input data\n")
@@ -33,17 +33,14 @@ function map_locus_interactions(snps::AbstractMatrix, expr::AbstractVector,
    end
 
 
-   # ----------------- Assign dummy variable names for modelling ---------------- #
+   # ------------------------------ Integrate data ------------------------------ #
 
    # Add context information
    context_names = Symbol.("C" .* string.(1:contexts_size[2]))
    contexts = DataFrame(contexts, context_names)
 
-   # Add snp information
-   snps = DataFrame(snps, :auto)
 
-
-   design = DataFrame(E = expr, donor = CategoricalArray(donor), batch = CategoricalArray(batch))
+   design = DataFrame(E = pheno, donor = CategoricalArray(donor), batch = CategoricalArray(batch))
    design = hcat(design, contexts)
 
    # Add contexts
@@ -51,28 +48,34 @@ function map_locus_interactions(snps::AbstractMatrix, expr::AbstractVector,
        design[!, col_name] = contexts[!, col_name]
    end
 
+   # ------------- Define modelling formula and bootstrapping terms ------------- #
 
    # Create formula
    f = term(:E) ~ term(:G) * sum(term.(context_names)) + 
-       (term(1) | term(:donor)) + (term(1) | term(:batch))
+        (term(1) | term(:donor)) + (term(1) | term(:batch))
 
+   
+   # Create bootstrapping terms
    boot_terms = Symbol.("G & " .* string.(context_names))
 
+   if main_effect
+        pushfirst!(boot_terms, :G)
+   end
 
-   if(main_effect)
-    boot_terms = vcat(:G, boot_terms)
+
+
+   # ------------ Run association for each SNP in input genotype data ----------- #
+
+   
+   res = pmap(eachcol(geno)) do snp
+        boot_snp(f, snp, design, boot_terms, n)
    end
    
-   
-   # Add genotype information for SNp of interest
-
-   res = map(eachcol(snps)) do snp
-       boot_snp(f, snp, design, boot_terms, n)
-   end
-   
-
-   res = Dict(:coefs => reduce(vcat, [x[:coefs] for x in res]), 
-              :p     => reduce(vcat, [x[:p] for x in res]))
+   # Extract results
+   res = Dict(
+    :coefs => vcat([x[:coefs] for x in res]...),
+    :p     => vcat([x[:p] for x in res]...)
+    )
 
 
    return(res)
