@@ -88,7 +88,7 @@ end
 
 
 
-function boot_snp(f::FormulaTerm, snp::Vector{Float64}, data::AbstractDataFrame, 
+function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame, 
     boot_terms::Vector{Symbol}, boot_sizes::Vector{Int64})
 
     # ------------------------------- Add genotypes ------------------------------ #
