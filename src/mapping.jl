@@ -78,6 +78,11 @@ function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector,
     :p     => vcat([x[:p] for x in results]...)
     )
 
+    if return_boot
+        res[:boot] = vcat([x[:boot] for x in results]...)
+    end
+
+
 
    return(res)
 
