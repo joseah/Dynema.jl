@@ -67,14 +67,14 @@ function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector,
    # ------------ Run association for each SNP in input genotype data ----------- #
 
    
-   res = pmap(eachcol(geno)) do snp
+   results = pmap(eachcol(geno)) do snp
         boot_snp(f, snp, design, boot_terms, n)
    end
    
    # Extract results
    res = Dict(
-    :coefs => vcat([x[:coefs] for x in res]...),
-    :p     => vcat([x[:p] for x in res]...)
+    :coefs => vcat([x[:coefs] for x in results]...),
+    :p     => vcat([x[:p] for x in results]...)
     )
 
 
