@@ -1,7 +1,8 @@
 
 function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector, 
     contexts::AbstractMatrix, donor::AbstractVector, batch::AbstractVector;
-    n::Vector{Int64} = [100, 400, 500, 4000, 5000], main_effect::Bool = false)
+    n::Vector{Int64} = [100, 400, 500, 4000, 5000], main_effect::Bool = false,
+    return_boot::Bool = false)
     
     
 
@@ -68,7 +69,7 @@ function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector,
 
    
    results = pmap(eachcol(geno)) do snp
-        boot_snp(f, snp, design, boot_terms, n)
+        boot_snp(f, snp, design, boot_terms, n, return_boot)
    end
    
    # Extract results
@@ -89,7 +90,7 @@ end
 
 
 function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame, 
-    boot_terms::Vector{Symbol}, boot_sizes::Vector{Int64})
+    boot_terms::Vector{Symbol}, boot_sizes::Vector{Int64}, return_boot::Bool = false)
 
     # ------------------------------- Add genotypes ------------------------------ #
     set = deepcopy(data)
@@ -142,8 +143,9 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
 
     res = Dict(:coefs => coefs, :p => p_vals)
 
-    res[:coefs]
-    res[:p]
+    if return_boot
+        res[:boot] = boot
+    end
 
     return(res)
 
