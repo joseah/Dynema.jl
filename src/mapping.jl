@@ -1,7 +1,7 @@
 
 function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector, 
     contexts::AbstractMatrix, donor::AbstractVector, batch::AbstractVector;
-    n::Vector{Int64} = [100, 400, 500, 4000, 5000], main_effect::Bool = false,
+    n::Vector{Int64} = [100, 400, 500, 4000, 5000]; main_effect::Bool = false,
     return_boot::Bool = false)
     
     
