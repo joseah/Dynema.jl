@@ -73,13 +73,13 @@ function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector,
    end
    
    # Extract results
-   res = Dict(
+   res = Dict{Symbol, Any}(
     :coefs => vcat([x[:coefs] for x in results]...),
     :p     => vcat([x[:p] for x in results]...)
     )
 
     if return_boot
-        res[:boot] = vcat([x[:boot] for x in results]...)
+        res[:boot] = [x[:boot] for x in results]
     end
 
 
@@ -143,7 +143,12 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
     end
 
     boot = boot[:, boot_terms]
-    p_vals = map(calculate_pvalue, eachcol(boot))
+
+    p_vals = zeros(length(boot_terms))
+    for i in 1:length(boot_terms)
+        p_vals[i] = basic_p(coefs[1, boot_terms][i], boot[:, i])
+    end
+
     p_vals = DataFrame(transpose(p_vals), names(boot))
 
     res = Dict(:coefs => coefs, :p => p_vals)
