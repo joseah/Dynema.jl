@@ -98,14 +98,13 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
     boot_terms::Vector{Symbol}, boot_sizes::Vector{Int64}, return_boot::Bool = false)
 
     # ------------------------------- Add genotypes ------------------------------ #
-    set = deepcopy(data)
 
-    set[!, :G] = snp
+    data[!, :G] = snp
 
     # ------------------- Compute betas and variance components ------------------ #
 
     # Fit model
-    model = fit(MixedModel, f, set)
+    model = fit(MixedModel, f, data)
     
     # Extract betas and variance components
     coefs = DataFrame([model.betas])
