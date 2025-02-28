@@ -135,42 +135,31 @@ Journal of the Royal Statistical Society: Series C (Applied Statistics), 52: 431
 https://doi.org/10.1111/1467-9876.00415
 """
 function resample!(rng::AbstractRNG, model::LinearMixedModel{T};
-                   cluster::Symbol = :donor,
-                   β=coef(model),
-                   blups=ranef(model),
-                   resids=residuals(model, blups),
-                   scalings=inflation_factor(model)) where {T}
+        β=coef(model),
+        blups=ranef(model),
+        resids=residuals(model, blups),
+        scalings=inflation_factor(model)) where {T}
     reterms = model.reterms
     y = response(model) # we are now modifying the model
 
-    j = last(findall(keys(model.rePCA) .== cluster))
-    Z = @view reterms[j][:, :]
-    Z_ncols = size(Z)[2]
-
-
-    for i in 1:Z_ncols
-        cluster_dummy = @view Z[:, i]
-        cluster_i = findall(cluster_dummy .> 0) 
-        cluster_i_resampled = sample(rng, cluster_i, length(cluster_i), replace = true)
-        y[cluster_i] .= y[cluster_i_resampled]
-    end
-
+    # sampling with replacement
+    sample!(rng, resids, y; replace=true)
 
     # inflate these to be on the same scale as the empirical variation instead of the MLE
     y .*= last(scalings)
 
     for (inflation, re, trm) in zip(scalings[2:end], blups, reterms)
-        npreds, ngrps = size(re)
-        # sampling with replacement
-        samp = sample(rng, 1:ngrps, ngrps; replace=true)
-        # allocate now to avoid allocating later
-        # while taking advantage of LowerTriangular lmul!
-        newre = re[:, samp]
+    npreds, ngrps = size(re)
+    # sampling with replacement
+    samp = sample(rng, 1:ngrps, ngrps; replace=true)
+    # allocate now to avoid allocating later
+    # while taking advantage of LowerTriangular lmul!
+    newre = re[:, samp]
 
-        # this just multiplies the Z matrices by the BLUPs
-        # and add that to y
-        mul!(y, trm, lmul!(last(inflation), newre), one(T), one(T))
-        # XXX inflation is resampling invariant -- should we move it out?
+    # this just multiplies the Z matrices by the BLUPs
+    # and add that to y
+    mul!(y, trm, lmul!(last(inflation), newre), one(T), one(T))
+    # XXX inflation is resampling invariant -- should we move it out?
     end
 
     mul!(y, model.X, β, one(T), one(T))
