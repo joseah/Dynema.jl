@@ -1,7 +1,7 @@
 
 function map_locus(geno::AbstractDataFrame, pheno::AbstractVector, 
     contexts::AbstractDataFrame, donor::AbstractVector, batch::AbstractVector,
-    n::Vector{Int64} = [100, 400, 500, 4000, 5000]; test_main::Bool = false,
+    n::Vector{Int64} = [100, 400, 500, 4000, 5000]; main_effect::Bool = false,
     return_boot::Bool = false)
     
    # ------------- Validate dimensionality of input data structures ------------- #
