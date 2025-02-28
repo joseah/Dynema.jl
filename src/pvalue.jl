@@ -14,11 +14,17 @@ function interp_pval(q)
     return(pval)
 
 end
-  
-  
    
+
 function basic_p(obs, boot; null = 0)
 
     interp_pval(2*obs .- boot .- null)
 
 end
+
+
+function calculate_pvalue(x)
+    2 * minimum([sum(x .> 0) + 1, sum(x .< 0) + 1]) / (length(x) + 1)
+end
+
+

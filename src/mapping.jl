@@ -118,10 +118,8 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
 
     for n in boot_sizes
        
-        boot_i = nonparametricbootstrap(MersenneTwister(n), n, model; progress = false)
-        boot_i = DataFrame(boot_i.β)
-        boot_i = unstack(boot_i, :coefname, :β)
-        boot_i = boot_i[! , Not(:iter)]
+        boot_i = boot_model(MersenneTwister(n), data, f, n)
+        boot_i = reduce(vcat, boot_i)
 
         # Combine with prebious results
         boot = vcat(boot, boot_i)
@@ -152,17 +150,4 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
 
     return(res)
 
-end
-
-
-
-
-function calculate_pvalue(x)
-    2 * minimum([sum(x .> 0) + 1, sum(x .< 0) + 1]) / (length(x) + 1)
-end
-
-
-
-function count_nonzeros(x)
-    minimum([sum(x .> 0), sum(x .< 0)])
 end
