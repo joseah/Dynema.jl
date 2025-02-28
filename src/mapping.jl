@@ -1,22 +1,19 @@
 
-function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector, 
-    contexts::AbstractMatrix, donor::AbstractVector, batch::AbstractVector,
-    n::Vector{Int64} = [100, 400, 500, 4000, 5000]; main_effect::Bool = false,
+function map_locus_interactions(geno::AbstractDataFrame, pheno::AbstractVector, 
+    contexts::AbstractDataFrame, donor::AbstractVector, batch::AbstractVector,
+    n::Vector{Int64} = [100, 400, 500, 4000, 5000]; test_main::Bool = false,
     return_boot::Bool = false)
     
-    
-
    # ------------- Validate dimensionality of input data structures ------------- #
 
-    geno_size = size(geno)
+    geno_size = nrow(geno)
     pheno_len = length(pheno)
-    contexts_size = size(contexts)
+    contexts_size = nrow(contexts)
     donor_len = length(donor)
     batch_len = length(batch)
 
-
-    n_obs = Dict(:snp => geno_size[1], :expr => pheno_len, 
-                 :contexts => contexts_size[1], :donor => donor_len, 
+    n_obs = Dict(:snp => geno_size, :expr => pheno_len, 
+                 :contexts => contexts_size, :donor => donor_len, 
                  :batch => batch_len)
    
    n_obs_vals  = collect(values(n_obs))
@@ -33,19 +30,15 @@ function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector,
        
    end
 
-
    # ------------------------------ Integrate data ------------------------------ #
 
    # Add context information
-   context_names = Symbol.("C" .* string.(1:contexts_size[2]))
-   contexts = DataFrame(contexts, context_names)
-
-
    design = DataFrame(E = pheno, donor = CategoricalArray(donor), batch = CategoricalArray(batch))
-   design = hcat(design, contexts)
-
+   
    # Add contexts
-   for col_name in names(contexts)
+   context_names = names(contexts)
+
+   for col_name in context_names
        design[!, col_name] = contexts[!, col_name]
    end
 
@@ -55,15 +48,12 @@ function map_locus_interactions(geno::AbstractMatrix, pheno::AbstractVector,
    f = term(:E) ~ term(:G) * sum(term.(context_names)) + 
         (term(1) | term(:donor)) + (term(1) | term(:batch))
 
-   
    # Create bootstrapping terms
    boot_terms = Symbol.("G & " .* string.(context_names))
 
    if main_effect
         pushfirst!(boot_terms, :G)
    end
-
-
 
    # ------------ Run association for each SNP in input genotype data ----------- #
 
