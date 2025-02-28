@@ -68,6 +68,10 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
     :p     => vcat([x[:p] for x in results]...)
     )
 
+    # Add SNP names to results
+    insertcols!(res[:p], 1, :snp => names(geno))
+    insertcols!(res[:coefs], 1, :snp => names(geno))
+
     if return_boot
         res[:boot] = [x[:boot] for x in results]
     end
