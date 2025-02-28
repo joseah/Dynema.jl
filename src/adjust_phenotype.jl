@@ -10,7 +10,7 @@ Adjust phenotype information for biological and technical covariates using a
 
 `pheno` Phenotype information for each cell.
 
-`covariates` Biological and technical covariates to regress out from phenotye information.
+`covariates` Biological and/or technical covariates to regress out from the phenotye information.
 
 
 # Return
@@ -23,13 +23,12 @@ Vector with adjusted phenotype information (deviance residuals).
 function adjust_phenotype(pheno::Vector{Int64}, covariates::AbstractDataFrame)
 
     fe_names = names(covariates)
-    pheno_covs = deepcopy(covariates)
-    pheno_covs[!, :C] = pheno
+    covariates[!, :C] = pheno
 
     f = term(:C) ~ sum(term.(fe_names))
 
-    fit = GLM.glm(f, pheno_covs, Poisson())
-    y = pheno_covs.C
+    fit = GLM.glm(f, covariates, Poisson())
+    y = covariates.C
     μ = predict(fit)
     res = @. sign(y - μ) * sqrt(devresid(Poisson(), y, μ))
     
