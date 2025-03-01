@@ -119,7 +119,9 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
     for n in boot_sizes
        
         boot_i = boot_model(MersenneTwister(n), data, f, n)
-        boot_i = reduce(vcat, boot_i)
+        boot_i = reduce(hcat, boot_i)
+        boot_i = DataFrame(transpose(boot_i), names(coefs))
+    
 
         # Combine with prebious results
         boot = vcat(boot, boot_i)
