@@ -13,7 +13,7 @@ function fit_model(f::FormulaTerm, resample::AbstractDataFrame)
     mdl = LinearMixedModel(f, resample)
     mdl.optsum.ftol_rel = 1e-8
     fit!(mdl)
-    return(mdl.β)
+    return(DataFrame([mdl.βs]))
 
 end
 
