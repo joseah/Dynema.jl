@@ -1,6 +1,6 @@
 
 function map_locus(geno::AbstractDataFrame, pheno::AbstractVector, 
-    contexts::AbstractDataFrame, donor::AbstractVector, batch::AbstractVector,
+    contexts::AbstractDataFrame, donor::AbstractVector, batch::Union{AbstractVector, Nothing} = nothing,
     n::Vector{Int64} = [100, 400, 500, 4000, 5000]; main_effect::Bool = false,
     return_boot::Bool = false)
     
@@ -10,11 +10,14 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
     pheno_len = length(pheno)
     contexts_size = nrow(contexts)
     donor_len = length(donor)
-    batch_len = length(batch)
+
 
     n_obs = Dict(:snp => geno_size, :expr => pheno_len, 
-                 :contexts => contexts_size, :donor => donor_len, 
-                 :batch => batch_len)
+                 :contexts => contexts_size, :donor => donor_len)
+
+    if !isnothing(batch)
+        n_obs[:batch] =  length(batch)
+    end
    
    n_obs_vals  = collect(values(n_obs))
 
@@ -33,7 +36,11 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
    # ------------------------------ Integrate data ------------------------------ #
 
    # Add context information
-   design = DataFrame(E = pheno, donor = CategoricalArray(donor), batch = CategoricalArray(batch))
+   design = DataFrame(E = pheno, donor = CategoricalArray(donor))
+
+   if !isnothing(batch)
+        design[!, :batch] = CategoricalArray(batch)
+   end
    
    # Add contexts
    context_names = names(contexts)
@@ -45,10 +52,17 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
    # ------------- Define modelling formula and bootstrapping terms ------------- #
 
    # Create formula
-   f = term(:E) ~ term(:G) * sum(term.(context_names)) + 
-        (term(1) | term(:donor)) + (term(1) | term(:batch))
+   f = term(:G) * sum(term.(context_names)) + (term(1) | term(:donor))
 
-   # Create bootstrapping terms
+   # Add batch effect to formula if any
+   if !isnothing(batch)
+        f = f + (term(1) | term(:batch))
+   end
+   
+   f = FormulaTerm(term(:E), f)
+
+   # ------------------------ Create bootstrapping terms ------------------------ #
+  
    boot_terms = Symbol.("G & " .* string.(context_names))
 
    if main_effect
