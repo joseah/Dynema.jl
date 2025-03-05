@@ -1,1 +1,9 @@
 /Manifest.toml
+test/misc/npb_palday.jl
+misc/improve_speed.jl
+misc/all_funcs.jl
+misc/Untitled-1.jl
+.gitignore
+src/obs_bootstrapping.jl
+test/misc/test1.jl
+.DS_Store
