@@ -1,8 +1,9 @@
 
 function map_locus(geno::AbstractDataFrame, pheno::AbstractVector, 
-    contexts::AbstractDataFrame, donor::AbstractVector, batch::Union{AbstractVector, Nothing} = nothing,
-    n::Vector{Int64} = [100, 400, 500, 4000, 5000]; main_effect::Bool = false,
-    return_boot::Bool = false)
+    contexts::AbstractDataFrame, donor::AbstractVector, 
+    batch::Union{AbstractVector, Nothing} = nothing, 
+    n::Vector{Int64} = [100, 400, 500, 4000, 5000]; 
+    main_effect::Bool = false, return_boot::Bool = false)
     
    # ------------- Validate dimensionality of input data structures ------------- #
 
@@ -33,15 +34,22 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
        
    end
 
+   # ------------------ Validate number of bootstrap iterations ----------------- #
+
+   if length(n) != length(unique(n))
+
+    throw("`n` must not contain duplicated values")
+   
+   end
+
    # ------------------------------ Integrate data ------------------------------ #
 
-   # Add context information
    design = DataFrame(E = pheno, donor = CategoricalArray(donor))
 
    if !isnothing(batch)
         design[!, :batch] = CategoricalArray(batch)
    end
-   
+
    # Add contexts
    context_names = names(contexts)
 
@@ -51,10 +59,15 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
 
    # ------------- Define modelling formula and bootstrapping terms ------------- #
 
-   # Create formula
-   f = term(:G) * sum(term.(context_names)) + (term(1) | term(:donor))
+   # Add fixed effects
+   ## Add main effect and interactions
+   f = term(:G) * sum(term.(context_names))
 
-   # Add batch effect to formula if any
+   # Add random effects
+   ## Add donor effect
+   f = f + (term(1) | term(:donor))
+
+   ## Add batch effect to formula if any
    if !isnothing(batch)
         f = f + (term(1) | term(:batch))
    end
@@ -77,7 +90,7 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
    end
    
    # Extract results
-   res = Dict{Symbol, Any}(
+   res = Dict{Symbol, Union{DataFrame, Vector{DataFrame}}}(
     :coefs => vcat([x[:coefs] for x in results]...),
     :p     => vcat([x[:p] for x in results]...)
     )
