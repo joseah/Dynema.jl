@@ -17,8 +17,10 @@ function fast_neighbors(data, n_neighbors; metric=Euclidean())
     
 
     
-    graph = nndescent(transpose(data), n_neighbors, metric)
+    graph = nndescent(transpose(data), n_neighbors - 1, metric)
     indices, distances = knn_matrices(graph)
+    indices = vcat(transpose(collect(1:size(indices)[2])), indices)
+    
     indices = [row for row in eachcol(indices)]
     
     return indices
@@ -37,9 +39,7 @@ function graph_poisson_disk(neighbors, n_pseudocells, n_candidates=100)
                 neighbors[i] is a list of the neighbors of node i
     n_pseudocells : the number of Poisson disk samples to generate
     n_candidates : the number of candidates to choose between when drawing a new sample,
-                   by default is 100
-    verbose: if <True>, prints sample number and node coverage over the course of sampling
-    
+                   by default is 100    
     Returns
     ------
     a vector with each element being a sublist containing the nodes in a Poisson disk sample
