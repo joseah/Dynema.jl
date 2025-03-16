@@ -18,9 +18,9 @@ function fast_neighbors(data, n_neighbors; metric=Euclidean())
 
     
     graph = nndescent(transpose(data), n_neighbors - 1, metric)
-    indices, distances = knn_matrices(graph)
-    indices = vcat(transpose(collect(1:size(indices)[2])), indices)
-    
+    indices, _ = knn_matrices(graph)
+
+    indices = vcat(transpose(1:size(indices, 2)), indices)
     indices = [row for row in eachcol(indices)]
     
     return indices
@@ -28,13 +28,13 @@ function fast_neighbors(data, n_neighbors; metric=Euclidean())
 end
 
 
-
-function graph_poisson_disk(neighbors, n_pseudocells, n_candidates=100)
+function graph_poisson_disk(rng, neighbors, n_pseudocells, n_candidates=100)
     """
     Calculates Poisson disk samples on a graph specified by `neighbors`
     
     Parameters
     ----------
+    rng : Random number generator
     neighbors : a 2D list specifying the neighbors of each node in the graph,
                 neighbors[i] is a list of the neighbors of node i
     n_pseudocells : the number of Poisson disk samples to generate
@@ -46,8 +46,7 @@ function graph_poisson_disk(neighbors, n_pseudocells, n_candidates=100)
     """
     
     # Select cell at random
-    Random.seed!(42)  # equivalent to np.random.seed(42)
-    sample = rand(1:length(neighbors))  # randomly choose a node
+    sample = rand(rng, 1:length(neighbors))  # randomly choose a node
     samples = [sample]
     
     # Remove it from the available samples
@@ -61,7 +60,7 @@ function graph_poisson_disk(neighbors, n_pseudocells, n_candidates=100)
     
     while length(samples) < n_pseudocells && length(available_samples) > 0
         # Choose `n_candidates` out of the available cells (indices)
-        sample_candidates = rand(available_samples, n_candidates)  # select candidate nodes
+        sample_candidates = rand(rng, available_samples, n_candidates)  # select candidate nodes
         sample_candidates = unique(sample_candidates)  # get unique candidates
         
         # Add to whole list of candidates
@@ -99,8 +98,7 @@ function graph_poisson_disk(neighbors, n_pseudocells, n_candidates=100)
 
     end
     
-    # Collect the neighborhoods corresponding to the samples
-    neighborhoods = [neighbors[i] for i in samples]
-    
-    return neighborhoods
+
+    return samples
+
 end
