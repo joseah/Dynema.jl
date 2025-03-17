@@ -1,7 +1,6 @@
 module npeQTL
 
 using MixedModels
-using MixedModels: fixef!, getθ!
 using StatsBase
 using Distributed
 using DataFrames
@@ -14,10 +13,7 @@ using StaticArrays
 using NearestNeighborDescent
 using Distances
 
-export nonparametricbootstrap
-export resample!
-export residuals_from_blups
-export inflation_factor
+export calculate_poisson_disks
 export map_locus
 export boot_snp
 export calculate_pvalue
