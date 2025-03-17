@@ -103,7 +103,7 @@ function graph_poisson_disk(rng, neighbors, n_pseudocells, n_candidates=100)
 
 end
 
-function calculate_poisson_disks(rng::AbstractRNG, embeddings::DataFrame, donor_ids::Vector{String}, n_disks::Int)
+function calculate_poisson_disks(rng::AbstractRNG, embeddings::DataFrame, donor_ids::AbstractVector, n_disks::Int)
 
     sample_fraction = round(n_disks / nrow(embeddings))
     ks = Int.([round(nrow(embeddings) / n_disks)])
