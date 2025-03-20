@@ -30,7 +30,8 @@ function adjust_phenotype(pheno::Vector{Int64}, covariates::AbstractDataFrame)
     fit = GLM.glm(f, covariates, Poisson())
     y = covariates.C
     μ = predict(fit)
-    res = @. sign(y - μ) * sqrt(devresid(Poisson(), y, μ))
+    # Clamp devresid result to avoid negative values due to floating-point precision errors
+    res = @. sign(y - μ) * sqrt(max(devresid(Poisson(), y, μ), 0)) 
     
     return(res)
 
