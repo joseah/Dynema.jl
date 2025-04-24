@@ -1,4 +1,4 @@
-struct DynNEMA
+struct DynNEMAModel
 
     coefs::DataFrame
     p_boot::DataFrame
@@ -15,7 +15,7 @@ struct DynNEMA
 end
 
 
-function Base.show(io::IO, ::MIME"text/plain", bm::DynNEMA)
+function Base.show(io::IO, ::MIME"text/plain", bm::DynNEMAModel)
     
     
     n_snps = length(bm.snps)
