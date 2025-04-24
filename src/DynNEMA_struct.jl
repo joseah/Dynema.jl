@@ -6,7 +6,7 @@ struct DynNEMAModel
     p_analytical::DataFrame
     std_analytical::DataFrame
     var_comp::DataFrame
-    boot::DataFrame
+    boot::Vector{DataFrame}
     boot_iter::Vector{Int64}
     formula::FormulaTerm
     snps::AbstractVector

@@ -93,7 +93,7 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
     if return_boot
         boot = [x[:boot] for x in results]
     else
-        boot = DataFrame()
+        boot = [DataFrame()]
     end
 
 
