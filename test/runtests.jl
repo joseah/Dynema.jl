@@ -1,6 +1,6 @@
-using npeQTL
+using DynNEMA
 using Test
 
-@testset "npeQTL.jl" begin
+@testset "DynNEMA.jl" begin
     # Write your tests here.
 end
