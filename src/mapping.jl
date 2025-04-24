@@ -89,20 +89,28 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
         boot_snp(f, snp, design, boot_terms, n, return_boot)
    end
    
-   # Extract results
-   res = Dict{Symbol, Union{DataFrame, Vector{DataFrame}}}(
-    :coefs => vcat([x[:coefs] for x in results]...),
-    :p     => vcat([x[:p] for x in results]...)
-    )
-
-    # Add SNP names to results
-    insertcols!(res[:p], 1, :snp => names(geno))
-    insertcols!(res[:coefs], 1, :snp => names(geno))
 
     if return_boot
-        res[:boot] = [x[:boot] for x in results]
+        boot = [x[:boot] for x in results]
+    else
+        boot = DataFrame()
     end
 
+
+   # Extract results
+   res = BootstrapMap(
+                        vcat([x[:coefs] for x in results]...),
+                        vcat([x[:p_boot] for x in results]...),
+                        vcat([x[:p_approx] for x in results]...),
+                        vcat([x[:p_analytical] for x in results]...),
+                        vcat([x[:std_analytical] for x in results]...),
+                        vcat([x[:var_comp] for x in results]...),
+                        boot,
+                        n,
+                        f,
+                        names(geno),
+                        context_names    
+                      )
 
 
    return(res)
@@ -135,9 +143,12 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
     sigmas_names = vcat(collect(string.(keys(model.sigmas))), "residual")
     sigmas_names = Symbol.("var_" .* sigmas_names)
 
-    # Merge betas and variance components
     re_var = DataFrame(transpose(var_values), sigmas_names)
-    coefs = hcat(coefs, re_var)
+
+    # ------------------------ Extract analytical p-values ----------------------- #
+
+    analytical_pvalues = DataFrame(transpose(model.pvalues), collect(keys(model.betas)))
+    analytical_std = DataFrame(transpose(model.stderror), collect(keys(model.betas)))
 
     # ----------------------- Start adaptive bootstrapping ----------------------- #
 
@@ -160,16 +171,36 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
 
     end
 
+
+    # ------------------------ Calculate bootstrap p-value ----------------------- #
+
     boot = boot[:, boot_terms]
 
     p_vals = zeros(length(boot_terms))
     for i in 1:length(boot_terms)
-        p_vals[i] = basic_p(coefs[1, boot_terms][i], boot[:, i])
+        p_vals[i] = calculate_bootstrap_pvalue(boot[:, i])
     end
+
 
     p_vals = DataFrame(transpose(p_vals), names(boot))
 
-    res = Dict(:coefs => coefs, :p => p_vals)
+    # --------------------------- Approximate p-values --------------------------- #
+
+    approx_p_vals = zeros(length(boot_terms))
+
+    for i in 1:length(boot_terms)
+        approx_p_vals[i] = approximate_pvalue(boot[:, i])
+    end
+    
+    approx_p_vals = DataFrame(transpose(approx_p_vals), names(boot))
+
+
+    res = Dict(:coefs           =>   coefs, 
+               :p_boot          =>   p_vals,
+               :p_approx        =>   approx_p_vals,
+               :p_analytical    =>   analytical_pvalues, 
+               :std_analytical  =>   analytical_std,
+               :var_comp        =>   re_var)
 
     if return_boot
         res[:boot] = boot
