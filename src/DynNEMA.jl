@@ -1,4 +1,4 @@
-module npeQTL
+module DynNEMA
 
 using MixedModels
 using StatsBase
@@ -25,6 +25,6 @@ include("bootstrapping.jl")
 include("mapping.jl")
 include("pvalue.jl")
 include("poisson_disk_sampling.jl")
-include("bootstrapmap.jl")
+include("DynNEMA_struct.jl")
 
 end

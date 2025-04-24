@@ -1,4 +1,4 @@
-struct BootstrapMap
+struct DynNEMA
 
     coefs::DataFrame
     p_boot::DataFrame
@@ -15,7 +15,7 @@ struct BootstrapMap
 end
 
 
-function Base.show(io::IO, ::MIME"text/plain", bm::npeQTL.BootstrapMap)
+function Base.show(io::IO, ::MIME"text/plain", bm::DynNEMA)
     
     
     n_snps = length(bm.snps)

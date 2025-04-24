@@ -98,7 +98,7 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
 
 
    # Extract results
-   res = BootstrapMap(
+   res = DynNEMA(
                         vcat([x[:coefs] for x in results]...),
                         vcat([x[:p_boot] for x in results]...),
                         vcat([x[:p_approx] for x in results]...),
