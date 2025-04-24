@@ -1,30 +1,33 @@
-function interp_pval(q)
 
-    R = length(q)
-    tstar = sort(q)
-   zero = searchsortedlast(tstar, 0)
+function calculate_bootstrap_pvalue(x)
+    min_zero = minimum([sum(x .> 0), sum(x .< 0)])
 
-    if(zero == 0 | zero == R) 
-        pval = 2/R
+    if min_zero == 0
+        pval = 2 / length(x)
     else
-        pval = 2*min(zero/R, (R-zero)/R)
-        
+        pval = 2 * min_zero / length(x)
     end
 
-    return(pval)
-
-end
-   
-
-function basic_p(obs, boot; null = 0)
-
-    interp_pval(2*obs .- boot .- null)
-
 end
 
+function approximate_pvalue(x)
 
-function calculate_pvalue(x)
-    2 * minimum([sum(x .> 0) + 1, sum(x .< 0) + 1]) / (length(x) + 1)
+    p = map(x) do d
+        p = cdf(Normal(Float64(d), std(x)), 0)
+
+        if mean(x) < 0
+            p = 1 .- p
+        end
+
+        return p / length(x)
+    end
+
+    p = 2 * sum(p)
+    
+    if p == 0
+        p = floatmin(Float64)
+    end
+
+    return(p)
+
 end
-
-
