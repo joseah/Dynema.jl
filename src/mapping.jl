@@ -3,7 +3,7 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
     contexts::AbstractDataFrame, donor::AbstractVector, 
     batch::Union{AbstractVector, Nothing} = nothing, 
     n::Vector{Int64} = [100, 400, 500, 4000, 5000]; 
-    main_effect::Bool = false, return_boot::Bool = false)
+    main_effect::Bool = false, return_boot::Bool = false, boot = true)
     
    # ------------- Validate dimensionality of input data structures ------------- #
 
@@ -84,16 +84,28 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
 
    # ------------ Run association for each SNP in input genotype data ----------- #
 
-   
-   results = pmap(eachcol(geno)) do snp
-        boot_snp(f, snp, design, boot_terms, n, return_boot)
-   end
-   
+   if boot
 
-    if return_boot
-        boot = [x[:boot] for x in results]
+        results = pmap(eachcol(geno)) do snp
+                boot_snp(f, snp, design, boot_terms, n, return_boot)
+        end
+        
+
+            if return_boot
+                boot = [x[:boot] for x in results]
+            else
+                boot = [DataFrame()]
+            end
+
     else
+
+        results = map(eachcol(geno)) do snp
+            fit_snp(f, snp, design)
+        end
+
         boot = [DataFrame()]
+        n::Vector{Int64} = [0]
+
     end
 
 
@@ -205,6 +217,49 @@ function boot_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame,
     if return_boot
         res[:boot] = boot
     end
+
+    return(res)
+
+end
+
+
+
+
+
+function fit_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame)
+
+    # ------------------------------- Add genotypes ------------------------------ #
+
+    data[!, :G] = snp
+
+    # ------------------- Compute betas and variance components ------------------ #
+
+    # Fit model
+    model = fit(MixedModel, f, data)
+    
+    # Extract betas and variance components
+    coefs = DataFrame([model.betas])
+    
+    sigmas = vcat([x[1] for x in model.sigmas], model.sigma)
+    var_values = sigmas.^2
+    sigmas_names = vcat(collect(string.(keys(model.sigmas))), "residual")
+    sigmas_names = Symbol.("var_" .* sigmas_names)
+
+    re_var = DataFrame(transpose(var_values), sigmas_names)
+
+    # ------------------------ Extract analytical p-values ----------------------- #
+
+    analytical_pvalues = DataFrame(transpose(model.pvalues), collect(keys(model.betas)))
+    analytical_std = DataFrame(transpose(model.stderror), collect(keys(model.betas)))
+
+
+    res = Dict(:coefs           =>   coefs, 
+               :p_boot          =>   DataFrame(),
+               :p_approx        =>   DataFrame(),
+               :p_analytical    =>   analytical_pvalues, 
+               :std_analytical  =>   analytical_std,
+               :var_comp        =>   re_var,
+               :boot            =>   DataFrame())
 
     return(res)
 
