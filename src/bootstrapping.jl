@@ -28,8 +28,3 @@ function boot_model(rng::AbstractRNG, md::AbstractDataFrame, f::FormulaTerm, n::
     return res_boot
 
 end
-
-
-function count_nonzeros(x)
-    minimum([sum(x .> 0), sum(x .< 0)])
-end

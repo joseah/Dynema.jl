@@ -31,3 +31,7 @@ function approximate_pvalue(x)
     return(p)
 
 end
+
+function count_nonzeros(x)
+    minimum([sum(x .> 0), sum(x .< 0)])
+end
