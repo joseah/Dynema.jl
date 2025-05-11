@@ -13,7 +13,7 @@ end
 function approximate_pvalue(x)
 
     p = map(x) do d
-        p = cdf(Normal(Float64(d), std(x)), 0)
+        p = cdf(Normal(Float64(d), std(x) / length(x)), 0)
 
         if mean(x) < 0
             p = 1 .- p
