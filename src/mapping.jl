@@ -264,3 +264,98 @@ function fit_snp(f::FormulaTerm, snp::AbstractVector, data::AbstractDataFrame)
     return(res)
 
 end
+
+
+
+
+
+
+
+function map_locus(f, geno, pheno, covariates, boot_terms::Vector{Symbol}, n::Vector{Int64} = [100, 400, 500, 4000, 5000]; return_boot::Bool = false, boot = true)
+    
+# ------------- Validate dimensionality of input data structures ------------- #
+
+    geno_size = nrow(geno)
+    pheno_len = length(pheno)
+    covariates_size = nrow(covariates)
+
+
+    n_obs = Dict(:snp => geno_size, :expr => pheno_len, 
+                 :covariates_size => covariates_size)
+
+   n_obs_vals  = collect(values(n_obs))
+
+   if(!all(x -> x == first(n_obs_vals), n_obs_vals))
+       
+       println("Verify number of observatios of input files")
+       println("Number of observations per input data\n")
+       for (key, value) in pairs(n_obs)
+           println(key, " = ", value)
+           
+       end
+       throw("Number of observations in input data do not match between input files")
+       
+   end
+
+   # ------------------ Validate number of bootstrap iterations ----------------- #
+
+   if length(n) != length(unique(n))
+
+    throw("`n` must not contain duplicated values")
+   
+   end
+
+
+   design = deepcopy(covariates)
+   design[!, :E] = pheno
+   # snp = geno[:, 1]
+   # boot_terms = [Symbol("G & CV1")]
+
+
+   # ------------ Run association for each SNP in input genotype data ----------- #
+
+   if boot
+
+        results = pmap(eachcol(geno)) do snp
+                boot_snp(f, snp, design, boot_terms, n, return_boot)
+        end
+        
+
+            if return_boot
+                boot = [x[:boot] for x in results]
+            else
+                boot = [DataFrame()]
+            end
+
+    else
+
+        results = map(eachcol(geno)) do snp
+            fit_snp(f, snp, design)
+        end
+
+        boot = [DataFrame()]
+        n::Vector{Int64} = [0]
+
+    end
+
+
+   # Extract results
+   res = DynNEMAModel(
+                        vcat([x[:coefs] for x in results]...),
+                        vcat([x[:p_boot] for x in results]...),
+                        vcat([x[:p_approx] for x in results]...),
+                        vcat([x[:p_analytical] for x in results]...),
+                        vcat([x[:std_analytical] for x in results]...),
+                        vcat([x[:var_comp] for x in results]...),
+                        boot,
+                        n,
+                        f,
+                        names(geno),
+                        boot_terms    
+                      )
+
+
+   return(res)
+
+
+end
