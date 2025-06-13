@@ -1,6 +1,6 @@
-using DynNEMA
+using Dynema
 using Test
 
-@testset "DynNEMA.jl" begin
+@testset "Dynema.jl" begin
     # Write your tests here.
 end
