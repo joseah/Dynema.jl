@@ -103,7 +103,7 @@ function graph_poisson_disk(rng, neighbors, n_pseudocells, n_candidates=100)
 
 end
 
-function calculate_poisson_disks(rng::AbstractRNG, embeddings::DataFrame, donor_ids::AbstractVector, n_disks::Int)
+function calculate_poisson_disks(rng::AbstractRNG, embeddings::DataFrame, donor_ids::AbstractVector, n_disks::Int, verbose::Bool = true)
 
     sample_fraction = round(n_disks / nrow(embeddings))
     ks = Int.([round(nrow(embeddings) / n_disks)])
@@ -120,14 +120,14 @@ function calculate_poisson_disks(rng::AbstractRNG, embeddings::DataFrame, donor_
 
         donor_idxs = [j for j in 1:nrow(embeddings) if donor_ids[j] == donor_id]
 
-        println("----------------")
-        println("Donor: ", donor_id, " [$i / $(length(donor_id_set))]")
-        println("N. Cells: ", length(donor_idxs))
+        printlnv("----------------", verbose = verbose)
+        printlnv("Donor: ", donor_id, " [$i / $(length(donor_id_set))]", verbose = verbose)
+        printlnv("N. Cells: ", length(donor_idxs), verbose = verbose)
         
 
         n_samples = max(15, Int(round(length(donor_idxs) * n_disks / nrow(embeddings))))
         n_neighbors = first(ks)
-        println("N. Disks: ", n_samples, "   N. Neighbors: ", n_neighbors)
+        printlnv("N. Disks: ", n_samples, "   N. Neighbors: ", n_neighbors, verbose = verbose)
 
         if length(donor_idxs) >= n_neighbors
 
@@ -136,8 +136,8 @@ function calculate_poisson_disks(rng::AbstractRNG, embeddings::DataFrame, donor_
             random_samples = rand(rng, 1:length(donor_idxs), n_samples)
             poisson_samples = Dynema.graph_poisson_disk(rng, neighbors, n_samples)
 
-            println("Random Coverage:", coverage(random_samples, neighbors))  
-            println("Poisson Coverage:", coverage(poisson_samples, neighbors))
+            printlnv("Random Coverage:", coverage(random_samples, neighbors), verbose = verbose)  
+            printlnv("Poisson Coverage:", coverage(poisson_samples, neighbors), verbose = verbose)
 
             random_neighbor = [donor_idxs[j] for j in neighbors[random_samples]]
             poisson_neighbor = [donor_idxs[j] for j in neighbors[poisson_samples]]
@@ -215,7 +215,7 @@ function calculate_poisson_disks(rng::AbstractRNG, embeddings::DataFrame, donor_
             @warn "Skipping donor $donor_id. Number of neighbors is greater than number of cells.
             Please adjust the number of disks"
         end
-        println("----------------")
+        printlnv("----------------", verbose = verbose)
 
     end
 

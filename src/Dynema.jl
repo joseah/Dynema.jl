@@ -26,5 +26,6 @@ include("mapping.jl")
 include("pvalue.jl")
 include("poisson_disk_sampling.jl")
 include("Dynema_struct.jl")
+include("utils.jl")
 
 end
