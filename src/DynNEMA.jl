@@ -1,4 +1,4 @@
-module DynNEMA
+module Dynema
 
 using MixedModels
 using StatsBase
@@ -25,6 +25,6 @@ include("bootstrapping.jl")
 include("mapping.jl")
 include("pvalue.jl")
 include("poisson_disk_sampling.jl")
-include("DynNEMA_struct.jl")
+include("Dynema_struct.jl")
 
 end

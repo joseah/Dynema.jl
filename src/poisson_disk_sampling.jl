@@ -131,10 +131,10 @@ function calculate_poisson_disks(rng::AbstractRNG, embeddings::DataFrame, donor_
 
         if length(donor_idxs) >= n_neighbors
 
-            neighbors = npeQTL.fast_neighbors(Matrix(embeddings[donor_idxs, :]), n_neighbors)
+            neighbors = Dynema.fast_neighbors(Matrix(embeddings[donor_idxs, :]), n_neighbors)
             
             random_samples = rand(rng, 1:length(donor_idxs), n_samples)
-            poisson_samples = npeQTL.graph_poisson_disk(rng, neighbors, n_samples)
+            poisson_samples = Dynema.graph_poisson_disk(rng, neighbors, n_samples)
 
             println("Random Coverage:", coverage(random_samples, neighbors))  
             println("Poisson Coverage:", coverage(poisson_samples, neighbors))

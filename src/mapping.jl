@@ -110,7 +110,7 @@ function map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
 
 
    # Extract results
-   res = DynNEMAModel(
+   res = DynemaModel(
                         vcat([x[:coefs] for x in results]...),
                         vcat([x[:p_boot] for x in results]...),
                         vcat([x[:p_approx] for x in results]...),
@@ -340,7 +340,7 @@ function map_locus(f, geno, pheno, covariates, boot_terms::Vector{Symbol}, n::Ve
 
 
    # Extract results
-   res = DynNEMAModel(
+   res = DynemaModel(
                         vcat([x[:coefs] for x in results]...),
                         vcat([x[:p_boot] for x in results]...),
                         vcat([x[:p_approx] for x in results]...),
