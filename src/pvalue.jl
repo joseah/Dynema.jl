@@ -3,10 +3,10 @@ function pass(stat, boot)
     minimum([sum(stat .> boot), sum(stat .< boot)])
 end
 
-function compute_pvalue(stat, boot, B)
+function compute_pvalue(stat, boot)
 
     pass_obs = pass(stat, boot)
-    pval = pass_obs == 0 ? 2 / length(boot) : 2 * pass_obs / B
+    pval = pass_obs == 0 ? 2 / (length(boot) + 1) : 2 * pass_obs / length(boot)
     return pval
 
 end
