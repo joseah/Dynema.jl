@@ -1,20 +1,20 @@
-function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFrame,  metadata::AbstractDataFrame, 
+function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFrame,  meta::AbstractDataFrame, 
                     groups::AbstractDataFrame, term::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     r = [0], ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66))
     
     # ------------- Validate dimensionality of input data structures ------------- #
 
-    verify_nobs_map_locus(geno, pheno, metadata, groups)
+    verify_nobs_map_locus(geno, pheno, meta, groups)
 
     # ---------------------------- Add phenotype data ---------------------------- #
 
-    design = deepcopy(metadata)
+    design = deepcopy(meta)
 
     # ------------ Run association for each SNP in input genotype data ----------- #
 
     results = @showprogress pmap(eachcol(geno)) do snp
         
-        map_snp(snp; f = f, pheno = pheno, metadata = design, groups = groups, term = term,
+        map_snp(snp; f = f, pheno = pheno, meta = design, groups = groups, term = term,
                 B = B, r = r, ptype = ptype, rboot = rboot, rng = rng)
     end
 
@@ -38,21 +38,12 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
 end
 
 
-
-
-
-#function map_snp(snp::AbstractVector; f::FormulaTerm;  pheno::Vector{Float64}, data::AbstractDataFrame,
-#                    groups::AbstractDataFrame, term::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
-#                    r = [0], ptype::Symbol = :equaltail, dist::Bool = false, rboot = true, rng::AbstractRNG = MersenneTwister(66))
-
-#function map_snp(snp::AbstractVector; kargs...)
-
-function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, metadata::AbstractDataFrame,
+function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, meta::AbstractDataFrame,
                     groups::AbstractDataFrame, term::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     r = [0], ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66))
 
         # Add expression and genotype data to covariates
-        design = deepcopy(metadata)
+        design = deepcopy(meta)
         design[!, :E] = pheno
         design[!, :G] = Float64.(snp)
 
@@ -79,26 +70,23 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, me
 
         
         # --------------------- Run first round of bootstrapping --------------------- #
-        B_total = B[1] - 1
         test = wildboottest(R, r; resp = pheno, predexog = predexog, clustid = groups, 
-                            rng = rng, ptype = ptype, reps = B_total)
+                            rng = rng, ptype = ptype, reps = B[1] - 1)
         
         # Extract results
         stat = teststat(test)
         boot = dist(test)[1, :]
         counts = pass(stat, boot)
-        #stat_type = stattype(test)
         b = test.b
 
         if counts <= 20
 
-            for j in 1:length(B)
+            for j in 2:length(B)
                 
                 test = wildboottest(R, r; resp = pheno, predexog = predexog, clustid = groups, 
                                     rng = rng, ptype = ptype, reps = B[j])
                 boot_i = dist(test)[1, :]
                 boot = vcat(boot, boot_i)
-                total_B = length(boot)
                 counts = pass(stat, boot)
                 
                 if counts > 20
@@ -110,7 +98,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, me
         end
 
         # Compute final p-value 
-        pval = compute_pvalue(stat, boot, B_total)
+        pval = compute_pvalue(stat, boot)
         
         # Gather results
         res = (DataFrame(coef = b, stat = stat, p = pval))
