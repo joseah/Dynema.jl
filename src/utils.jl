@@ -6,17 +6,17 @@ end
 
 
 function verify_nobs_map_locus(geno::AbstractDataFrame, pheno::Vector{Float64}, 
-                                data::AbstractDataFrame, groups::AbstractDataFrame)
+                                metadata::AbstractDataFrame, groups::AbstractDataFrame)
 
     geno_size = nrow(geno)
     pheno_size = length(pheno)
-    data_size = nrow(data)
+    metadata_size = nrow(metadata)
     groups_size = nrow(groups)
 
 
 
    n_obs = Dict(:snp => geno_size, :expr => pheno_size, 
-                 :data => data_size, :groups => groups_size)
+                 :metadata => metadata_size, :groups => groups_size)
 
    n_obs_vals  = collect(values(n_obs))
 

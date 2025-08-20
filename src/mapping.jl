@@ -1,20 +1,20 @@
-function map_locus(f::FormulaTerm; geno::AbstractDataFrame, pheno::Vector{Float64}, data::AbstractDataFrame, 
+function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFrame,  metadata::AbstractDataFrame, 
                     groups::AbstractDataFrame, term::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     r = [0], ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66))
     
     # ------------- Validate dimensionality of input data structures ------------- #
 
-    verify_nobs_map_locus(geno, pheno, data, groups)
+    verify_nobs_map_locus(geno, pheno, metadata, groups)
 
     # ---------------------------- Add phenotype data ---------------------------- #
 
-    design = deepcopy(data)
+    design = deepcopy(metadata)
 
     # ------------ Run association for each SNP in input genotype data ----------- #
 
     results = @showprogress pmap(eachcol(geno)) do snp
         
-        map_snp(snp; f = f, pheno = pheno, data = design, groups = groups, term = term,
+        map_snp(snp; f = f, pheno = pheno, metadata = design, groups = groups, term = term,
                 B = B, r = r, ptype = ptype, rboot = rboot, rng = rng)
     end
 
@@ -47,12 +47,12 @@ end
 
 #function map_snp(snp::AbstractVector; kargs...)
 
-function map_snp(snp::AbstractVector; f::FormulaTerm,  pheno::Vector{Float64}, data::AbstractDataFrame,
+function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, metadata::AbstractDataFrame,
                     groups::AbstractDataFrame, term::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     r = [0], ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66))
 
         # Add expression and genotype data to covariates
-        design = deepcopy(data)
+        design = deepcopy(metadata)
         design[!, :E] = pheno
         design[!, :G] = Float64.(snp)
 

@@ -51,7 +51,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     println(Crayon(reset = true), "\nResults")
     pretty_table(glance, header = (names(glance)))
-    println("** smallest p-value = $(2/sum(B)); report as p < $(2/sum(B))")
+    println("** smallest p-value = $(2/sum(m.B)); report as p < $(2/sum(m.B))")
     
     
 end
