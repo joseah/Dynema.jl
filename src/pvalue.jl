@@ -1,12 +1,13 @@
 
-function calculate_bootstrap_pvalue(x)
-    min_zero = minimum([sum(x .> 0), sum(x .< 0)])
+function pass(stat, boot)
+    minimum([sum(stat .> boot), sum(stat .< boot)])
+end
 
-    if min_zero == 0
-        pval = 2 / length(x)
-    else
-        pval = 2 * min_zero / length(x)
-    end
+function compute_pvalue(stat, boot, B)
+
+    pass_obs = pass(stat, boot)
+    pval = pass_obs == 0 ? 2 / length(boot) : 2 * pass_obs / B
+    return pval
 
 end
 
@@ -30,8 +31,4 @@ function approximate_pvalue(x)
 
     return(p)
 
-end
-
-function count_nonzeros(x)
-    minimum([sum(x .> 0), sum(x .< 0)])
 end

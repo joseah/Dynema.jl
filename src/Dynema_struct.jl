@@ -1,41 +1,57 @@
 struct DynemaModel
 
-    coefs::DataFrame
-    p_boot::DataFrame
-    p_approx::DataFrame
-    p_analytical::DataFrame
-    std_analytical::DataFrame
-    var_comp::DataFrame
-    boot::Vector{DataFrame}
-    boot_iter::Vector{Int64}
-    formula::FormulaTerm
-    snps::AbstractVector
-    contexts::AbstractVector
+    f::FormulaTerm
+    term::String
+    ncells::Int
+    ndonors::Int
+    summ_stats::DataFrame
+    B::Vector{Int64}
+    boot_dist::AbstractVector
 
 end
 
 
-function Base.show(io::IO, ::MIME"text/plain", bm::DynemaModel)
-    
-    
-    n_snps = length(bm.snps)
-    n_contexts = length(bm.contexts)
-    
+function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
+
     print(Crayon(foreground = :light_yellow, bold = true), "\nDynamic non-parametric eQTL mapping (Dynema) model\n\n")
+    print(Crayon(foreground = :green), "Wild cluster bootstrap via WildBootTests.jl\n\n")
+    print(Crayon(foreground = :blue), m.f, "\n\n")
 
-    if length(bm.boot_iter) == 1 && bm.boot_iter[1] == 0
-        info = DataFrame(:c => ["SNPs", "Contexts"], :N => [n_snps, n_contexts])
-        print(Crayon(foreground = :red, bold = true), "No bootstrapping: Parametric results only\n\n")
+
+    print(Crayon(reset = true, bold = true), "Term tested   = ")
+    println(Crayon(foreground = :red, bold = true), m.term)
+
+    
+    print(Crayon(reset = true, bold = true), "N. bootstraps = ")
+    println(Crayon(foreground = :red, bold = true), "$(sum(m.B))")
+
+    
+    print(Crayon(reset = true, bold = true), "N. SNPs       = ")
+    println(Crayon(foreground = :red, bold = true), "$(nrow(m.summ_stats))")
+
+    
+    print(Crayon(reset = true, bold = true), "N. cells      = ")
+    println(Crayon(foreground = :red, bold = true), "$(m.ncells)")
+    
+    print(Crayon(reset = true, bold = true), "N. donors     = ")
+    println(Crayon(foreground = :red, bold = true), "$(m.ndonors)")
+
+
+    if nrow(m.summ_stats) >= 6
+        glance = first(m.summ_stats, 3)
+        push!(glance, fill("...", ncol(m.summ_stats)), promote = true)
+        glance = vcat(glance, last(m.summ_stats, 3))
+        
+
     else
-        n_boot = sum(bm.boot_iter)
-        info = DataFrame(:c => ["SNPs", "Contexts", "Max. bootstrap iters."], :N => [n_snps, n_contexts, n_boot])
-
+        glance = m.summ_stats
     end
 
 
-    print(Crayon(reset = true))
-    println(bm.formula, "\n")
-    pretty_table(info, header = (["Parameters", "N."]))
+
+    println(Crayon(reset = true), "\nResults")
+    pretty_table(glance, header = (names(glance)))
+    println("** smallest p-value = $(2/sum(B)); report as p < $(2/sum(B))")
     
     
 end
