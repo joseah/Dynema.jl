@@ -266,6 +266,6 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     println("** smallest p-value = $(2/sum(B(m))); report as p < $(2/sum(B(m)))\n")
     
     print(Crayon(reset = true, bold = true), "Computation time = ")
-    println(Crayon(foreground = :green, bold = true), "$(timewait(m) / 60) mins.")
+    println(Crayon(foreground = :green, bold = true), "$(round(timewait(m) / 60, sigdigits = 4)) mins.")
 
 end
