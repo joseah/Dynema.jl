@@ -10,7 +10,7 @@ struct DynemaModel
     ndonors::Int
     stats::DataFrame
     B::Vector{Int64}
-    boot_dist::AbstractVector
+    bootdist::AbstractVector
 
 end
 
