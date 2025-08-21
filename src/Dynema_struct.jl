@@ -8,9 +8,9 @@ struct DynemaModel
     bterm::String
     ncells::Int
     ndonors::Int
-    stats::DataFrame
+    sumstats::DataFrame
     B::Vector{Int64}
-    bootdist::AbstractVector
+    bootdists::AbstractVector
 
 end
 
@@ -56,12 +56,12 @@ ndonors(m::DynemaModel) = m.ndonors
 
 """
 
-`stats(::Dynema.DynemaModel)`
+`sumstats(::Dynema.DynemaModel)`
 
 Extract all summary statistics for a DynemaModel
 """
 
-stats(m::DynemaModel) = m.stats
+sumstats(m::DynemaModel) = m.sumstats
 
 
 """
@@ -71,7 +71,7 @@ stats(m::DynemaModel) = m.stats
 Extract bootstrapepd statistic for a DynemaModel
 """
 
-bstat(m::DynemaModel) = m.stats.bstat
+bstats(m::DynemaModel) = m.sumstats.stat
 
 """
 
@@ -80,7 +80,7 @@ bstat(m::DynemaModel) = m.stats.bstat
 Extract OLS beta coefficients for all SNPS for the tested bootstrapped 'bterm' with a DynemaModel
 """
 
-coefs(m::DynemaModel) = m.stats.b
+coefs(m::DynemaModel) = m.sumstats.coef
 
 """
 
@@ -89,7 +89,7 @@ coefs(m::DynemaModel) = m.stats.b
 Extract empirical p-values for a DynemaModel
 """
 
-pvalues(m::DynemaModel) = m.stats.p
+pvalues(m::DynemaModel) = m.sumstats.p
 
 
 """
@@ -99,7 +99,7 @@ pvalues(m::DynemaModel) = m.stats.p
 Extract SNP/genetic variant names provided as column names in genotypying data from a DynemaModel
 """
 
-snps(m::DynemaModel) = m.stats.snp
+snps(m::DynemaModel) = m.sumstats.snp
 
 
 """
@@ -115,12 +115,12 @@ B(m::DynemaModel) = m.B
 
 """
 
-`bootdist(::Dynema.DynemaModel)`
+`bootdists(::Dynema.DynemaModel)`
 
 Extract bootstrap stat distributions for each SNP for a DynemaModel
 """
 
-bootdist(m::DynemaModel) = m.bootdist
+bootdists(m::DynemaModel) = m.bootdists
 
 
 # ---------------------------------------------------------------------------- #
@@ -143,7 +143,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     
     print(Crayon(reset = true, bold = true), "N. SNPs       = ")
-    println(Crayon(foreground = :red, bold = true), "$(nrow(stats(m)))")
+    println(Crayon(foreground = :red, bold = true), "$(nrow(sumstats(m)))")
 
     
     print(Crayon(reset = true, bold = true), "N. cells      = ")
@@ -153,14 +153,14 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     println(Crayon(foreground = :red, bold = true), "$(ndonors(m))")
 
 
-    if nrow(stats(m)) >= 10
+    if nrow(sumstats(m)) >= 10
         
-        glance = first(sort(stats(m), [order(:p), order(:stat, by = abs, rev = true)]), 10)
-        push!(glance, fill("...", ncol(stats(m))), promote = true)
+        glance = first(sort(sumstats(m), [order(:p), order(:stat, by = abs, rev = true)]), 10)
+        push!(glance, fill("...", ncol(sumstats(m))), promote = true)
 
     else
 
-        glance = stats(m)
+        glance = sumstats(m)
 
     end
 
