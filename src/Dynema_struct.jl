@@ -11,7 +11,7 @@ mutable struct DynemaModel
     const sumstats::DataFrame
     const B::Vector{Int64}
     const bootdists::AbstractVector
-    const timewait::Int
+    const timewait::Float64
     pos::Union{Nothing, Vector{Real}}
     gene::Union{Nothing, String}
     chr::Union{Nothing, String, Int}
