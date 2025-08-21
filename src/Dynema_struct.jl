@@ -114,7 +114,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     println(Crayon(foreground = :red, bold = true), "$(ndonors(m))")
 
 
-    if nrow(m.summ_stats) >= 10
+    if nrow(stats(m)) >= 10
         
         glance = first(sort(stats(m), [order(:p), order(:stat, by = abs, rev = true)]), 10)
         push!(glance, fill("...", ncol(stats(m))), promote = true)
