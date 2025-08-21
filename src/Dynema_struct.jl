@@ -5,7 +5,7 @@
 struct DynemaModel
 
     f::FormulaTerm
-    term::String
+    fterm::String
     ncells::Int
     ndonors::Int
     stats::DataFrame
@@ -34,7 +34,7 @@ f(m::DynemaModel) = m.f
 Extract formula used for a DynemaModel
 """
 
-term(m::DynemaModel) = m.term
+fterm(m::DynemaModel) = m.fterm
 
 """
 
@@ -58,10 +58,49 @@ ndonors(m::DynemaModel) = m.ndonors
 
 `stats(::Dynema.DynemaModel)`
 
-Extract summary statistics for a DynemaModel
+Extract all summary statistics for a DynemaModel
 """
 
 stats(m::DynemaModel) = m.stats
+
+
+"""
+
+`bstat(::Dynema.DynemaModel)`
+
+Extract bootstrapepd statistic for a DynemaModel
+"""
+
+bstat(m::DynemaModel) = m.stats.bstat
+
+"""
+
+`coefs(::Dynema.DynemaModel)`
+
+Extract OLS beta coefficients for all SNPS for tested fterm with a DynemaModel
+"""
+
+coefs(m::DynemaModel) = m.stats.b
+
+"""
+
+`pvalues(::Dynema.DynemaModel)`
+
+Extract empirical p-values for a DynemaModel
+"""
+
+pvalues(m::DynemaModel) = m.stats.p
+
+
+"""
+
+`snps(::Dynema.DynemaModel)`
+
+Extract SNP/genetic variant names provided as column names in genotypying data from a DynemaModel
+"""
+
+snps(m::DynemaModel) = m.stats.snp
+
 
 """
 

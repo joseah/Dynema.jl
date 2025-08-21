@@ -1,5 +1,5 @@
 function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFrame,  meta::AbstractDataFrame, 
-                    groups::AbstractDataFrame, term::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
+                    groups::AbstractDataFrame, fterm::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     r = [0], ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66))
     
     # ------------- Validate dimensionality of input data structures ------------- #
@@ -14,7 +14,7 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
 
     results = @showprogress pmap(eachcol(geno)) do snp
         
-        map_snp(snp; f = f, pheno = pheno, meta = design, groups = groups, term = term,
+        map_snp(snp; f = f, pheno = pheno, meta = design, groups = groups, fterm = fterm,
                 B = B, r = r, ptype = ptype, rboot = rboot, rng = rng)
     end
 
@@ -29,7 +29,7 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
 
 
     # --------------------------- Create Dynema object --------------------------- #
-    res = DynemaModel(f, term, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist)
+    res = DynemaModel(f, fterm, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist)
 
 
     return(res)
@@ -39,7 +39,7 @@ end
 
 
 function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, meta::AbstractDataFrame,
-                    groups::AbstractDataFrame, term::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
+                    groups::AbstractDataFrame, fterm::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     r = [0], ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66))
 
         # Add expression and genotype data to covariates
@@ -60,10 +60,10 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, me
 
         terms = termnames(f)[2]
         
-        R = terms .== term
+        R = terms .== fterm
 
         if !any(R)
-            throw("Term '$term' not found in formula. Verify the term in included in the formula")
+            throw("Term '$fterm' not found in formula. Verify the fterm in included in the formula")
         else
             R = reshape(R, 1, length(R))
         end
