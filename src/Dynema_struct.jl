@@ -126,6 +126,38 @@ Extract bootstrap stat distributions for each SNP for a DynemaModel
 bootdists(m::DynemaModel) = m.bootdists
 
 
+
+"""
+
+`pos(::Dynema.DynemaModel)`
+
+Extract genomic position for each SNP
+"""
+
+pos(m::DynemaModel) = m.pos
+
+
+"""
+
+`genename(::Dynema.DynemaModel)`
+
+Extract name for tested gene
+"""
+
+genename(m::DynemaModel) = m.gene
+
+
+
+"""
+
+`genechr(::Dynema.DynemaModel)`
+
+Extract name for tested gene
+"""
+
+genechr(m::DynemaModel) = m.chr
+
+
 """
 
 `setpos(::Dynema.DynemaModel)`
@@ -178,6 +210,16 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     print(Crayon(foreground = :light_yellow, bold = true), "\nDynamic non-parametric eQTL mapping (Dynema) model\n\n")
     print(Crayon(foreground = :green), "Wild cluster bootstrap via WildBootTests.jl\n\n")
     print(Crayon(foreground = :blue), f(m), "\n\n")
+
+    if !isnothing(genename(m))
+            print(Crayon(reset = true, bold = true), "Gene name    = ")
+            println(Crayon(foreground = :green, bold = true), genename(m))
+    end
+
+    if !isnothing(genechr(m))
+            print(Crayon(reset = true, bold = true), "Gene chr.    = ")
+            println(Crayon(foreground = :green, bold = true), genechr(m))
+    end
 
 
     print(Crayon(reset = true, bold = true), "Term tested   = ")
