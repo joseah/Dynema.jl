@@ -29,7 +29,7 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
 
 
     # --------------------------- Create Dynema object --------------------------- #
-    res = DynemaModel(f, fterm, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist)
+    res = DynemaModel(f, bterm, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist)
 
 
     return(res)
