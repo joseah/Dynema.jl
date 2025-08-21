@@ -5,7 +5,7 @@
 struct DynemaModel
 
     f::FormulaTerm
-    fterm::String
+    bterm::String
     ncells::Int
     ndonors::Int
     stats::DataFrame
@@ -29,12 +29,12 @@ f(m::DynemaModel) = m.f
 
 """
 
-`term(::Dynema.DynemaModel)`
+`bterm(::Dynema.DynemaModel)`
 
 Extract formula used for a DynemaModel
 """
 
-fterm(m::DynemaModel) = m.fterm
+bterm(m::DynemaModel) = m.bterm
 
 """
 
@@ -77,7 +77,7 @@ bstat(m::DynemaModel) = m.stats.bstat
 
 `coefs(::Dynema.DynemaModel)`
 
-Extract OLS beta coefficients for all SNPS for tested fterm with a DynemaModel
+Extract OLS beta coefficients for all SNPS for the tested bootstrapped 'bterm' with a DynemaModel
 """
 
 coefs(m::DynemaModel) = m.stats.b
@@ -135,7 +135,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
 
     print(Crayon(reset = true, bold = true), "Term tested   = ")
-    println(Crayon(foreground = :red, bold = true), term(m))
+    println(Crayon(foreground = :red, bold = true), bterm(m))
 
     
     print(Crayon(reset = true, bold = true), "N. bootstraps = ")
