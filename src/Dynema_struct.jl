@@ -11,6 +11,7 @@ mutable struct DynemaModel
     const sumstats::DataFrame
     const B::Vector{Int64}
     const bootdists::AbstractVector
+    const timewait::Int
     pos::Union{Nothing, Vector{Real}}
     gene::Union{Nothing, String}
     chr::Union{Nothing, String, Int}
@@ -126,6 +127,14 @@ Extract bootstrap stat distributions for each SNP for a DynemaModel
 bootdists(m::DynemaModel) = m.bootdists
 
 
+"""
+
+`timewait(::Dynema.DynemaModel)`
+
+Extract elapsed time in seconds to map locus using Dynema
+"""
+
+timewait(m::DynemaModel) = m.timewait
 
 """
 
@@ -254,7 +263,9 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     println(Crayon(reset = true), "\nResults")
     pretty_table(glance, header = (names(glance)))
-    println("** smallest p-value = $(2/sum(B(m))); report as p < $(2/sum(B(m)))")
+    println("** smallest p-value = $(2/sum(B(m))); report as p < $(2/sum(B(m)))\n")
     
-    
+    print(Crayon(reset = true, bold = true), "Computation time = ")
+    println(Crayon(foreground = :green, bold = true), "$(timewait(m) / 60) mins.")
+
 end

@@ -15,11 +15,14 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
 
     # ------------ Run association for each SNP in input genotype data ----------- #
 
+    t0 = time()
     results = @showprogress pmap(eachcol(geno)) do snp
         
         map_snp(snp; f = f, pheno = pheno, meta = design, groups = groups, bterm = bterm,
                 B = B, r = r, ptype = ptype, rboot = rboot, rng = rng)
     end
+    t1 = time()
+    timewait = t1 - t0
 
     # ------------------------ Collect summary statistics ------------------------ #
 
@@ -32,7 +35,7 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
 
 
     # --------------------------- Create Dynema object --------------------------- #
-    res = DynemaModel(f, bterm, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist, pos, gene, chr)
+    res = DynemaModel(f, bterm, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist, timewait, pos, gene, chr)
 
 
     return(res)
