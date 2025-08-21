@@ -18,6 +18,7 @@ using ProgressMeter
 export map_locus
 export adjust_phenotype
 export f, bterm, ncells, ndonors, sumstats, bstats, coefs, pvalues, snps, B, bootdists
+export setpos!, setgene!, setchr!
 
 
 include("adjust_phenotype.jl")

@@ -1,6 +1,9 @@
 function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFrame,  meta::AbstractDataFrame, 
                     groups::AbstractDataFrame, bterm::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
-                    r = [0], ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66))
+                    r = [0], ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66), 
+                    pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
+                    gene::Union{Nothing, String} = nothing,
+                    chr::Union{Nothing, String, Int} = nothing)
     
     # ------------- Validate dimensionality of input data structures ------------- #
 
@@ -29,7 +32,7 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
 
 
     # --------------------------- Create Dynema object --------------------------- #
-    res = DynemaModel(f, bterm, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist)
+    res = DynemaModel(f, bterm, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist, pos, gene, chr)
 
 
     return(res)

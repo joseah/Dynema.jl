@@ -2,15 +2,18 @@
 #                           Define DynemaModel struct                          #
 # ---------------------------------------------------------------------------- #
 
-struct DynemaModel
+mutable struct DynemaModel
 
-    f::FormulaTerm
-    bterm::String
-    ncells::Int
-    ndonors::Int
-    sumstats::DataFrame
-    B::Vector{Int64}
-    bootdists::AbstractVector
+    const f::FormulaTerm
+    const bterm::String
+    const ncells::Int
+    const ndonors::Int
+    const sumstats::DataFrame
+    const B::Vector{Int64}
+    const bootdists::AbstractVector
+    pos::Union{Nothing, Vector{Real}}
+    gene::Union{Nothing, String}
+    chr::Union{Nothing, String, Int}
 
 end
 
@@ -121,6 +124,49 @@ Extract bootstrap stat distributions for each SNP for a DynemaModel
 """
 
 bootdists(m::DynemaModel) = m.bootdists
+
+
+"""
+
+`setpos(::Dynema.DynemaModel)`
+
+Sets positions for all SNPs/genetic variants for a DynemaModel
+"""
+
+
+function setpos!(m::DynemaModel, pos::Union{Nothing, Vector{Int64}, Vector{Float64}})
+    m.pos = pos
+    return m
+end
+
+
+
+"""
+
+`setgene(::Dynema.DynemaModel)`
+
+Sets gene name for a DynemaModel
+"""
+
+
+function setgene!(m::DynemaModel, gene::Union{Nothing, String})
+    m.gene = gene
+    return m
+end
+
+"""
+
+`setchr(::Dynema.DynemaModel)`
+
+Sets chromosome name for gene tested
+"""
+
+
+function setchr!(m::DynemaModel, chr::Union{Nothing, String, Int})
+    m.chr = chr
+    return m
+end
+
 
 
 # ---------------------------------------------------------------------------- #
