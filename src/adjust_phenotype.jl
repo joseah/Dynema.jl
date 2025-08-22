@@ -1,38 +1,46 @@
 
 """
-    adjust_phenotype(pheno::AbstractDataFrame, covariates::AbstractDataFrame)
+    adjust_phenotype(f::FormulaTerm, pheno::AbstractVector, covariates::AbstractDataFrame)
 
-Adjust phenotype information for biological and technical covariates using a 
-    Poisson Generalized Linear Model.
+Adjust phenotype information for biological and technical covariates using 
+    ordinary least squares (OLS)
 
 
 # Arguments
 
+`f` Formula object describing residualization strategy
+
 `pheno` Phenotype information for each cell.
 
-`covariates` Biological and/or technical covariates to regress out from the phenotye information.
+`covariates` Biological and/or technical covariates to regress out from the phenotype information.
 
 
 # Return
 
-Vector with adjusted phenotype information (deviance residuals).
+Vector with adjusted phenotype information (OLS residuals).
 
 """
 
 
-function adjust_phenotype(pheno::Vector{Int64}, covariates::AbstractDataFrame)
+function adjust_phenotype(f::FormulaTerm, pheno::AbstractVector, covariates::AbstractDataFrame)
 
-    fe_names = names(covariates)
-    covariates[!, :C] = pheno
+    schema_f = schema(f, covariates)
+    f_res = apply_schema(f, schema_f)
+    _, predexog = modelcols(f_res, covariates)
 
-    f = term(:C) ~ sum(term.(fe_names))
+    return ols_residuals(expr_gene, predexog)
 
-    fit = GLM.glm(f, covariates, Poisson())
-    y = covariates.C
-    μ = predict(fit)
-    # Clamp devresid result to avoid negative values due to floating-point precision errors
-    res = @. sign(y - μ) * sqrt(max(devresid(Poisson(), y, μ), 0)) 
-    
-    return(res)
+end
+
+
+
+function ols_residuals(y::AbstractVector, X::Matrix{Float64})
+
+    β = Vector{Float64}(undef, size(X, 2))
+    r = Vector{Float64}(undef, size(X, 1))
+    β .= X \ y
+    mul!(r, X, β)
+    @. r = y - r
+    return r
 
 end
