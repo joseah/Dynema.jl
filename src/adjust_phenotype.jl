@@ -24,11 +24,13 @@ Vector with adjusted phenotype information (OLS residuals).
 
 function adjust_phenotype(f::FormulaTerm, pheno::AbstractVector, covariates::AbstractDataFrame)
 
+    if(length(pheno) != nrow(covariates)) throw("Phenotype and covariates have different number of observarions") end
+
     schema_f = schema(f, covariates)
     f_res = apply_schema(f, schema_f)
     _, predexog = modelcols(f_res, covariates)
 
-    return ols_residuals(expr_gene, predexog)
+    return ols_residuals(pheno, predexog)
 
 end
 
