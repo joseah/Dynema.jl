@@ -33,7 +33,7 @@ function cell2diskaggr(pd::AbstractVector,
     end
 
    else
-        subdata = length(pd) > 1 ? data[pd, :] : data[[pd], :]
+        subdata = data[pd, :]
         [f(col) for col in eachcol(subdata)]
    end
 
