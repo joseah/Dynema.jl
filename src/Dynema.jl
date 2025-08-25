@@ -21,7 +21,7 @@ export adjust_phenotype
 export f, bterm, ncells, ndonors, sumstats, bstats, coefs, pvalues, snps, B, bootdists
 export pos, genename, genechr
 export setpos!, setgene!, setchr!
-export calculate_poisson_disks, aggregate_expr, aggregate_meta
+export calculate_poisson_disks, aggregate_expr, aggregate_meta, uniq
 
 
 include("Dynema_struct.jl")
