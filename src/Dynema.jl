@@ -28,6 +28,7 @@ include("adjust_phenotype.jl")
 include("mapping.jl")
 include("pvalue.jl")
 include("poisson_disk_sampling.jl")
+include("aggregation.jl")
 include("utils.jl")
 
 end
