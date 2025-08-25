@@ -20,7 +20,7 @@ export adjust_phenotype
 export f, bterm, ncells, ndonors, sumstats, bstats, coefs, pvalues, snps, B, bootdists
 export pos, genename, genechr
 export setpos!, setgene!, setchr!
-export aggregate_expr, aggregate_meta
+export calculate_poisson_disks, aggregate_expr, aggregate_meta
 
 
 include("adjust_phenotype.jl")
