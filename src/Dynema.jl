@@ -23,10 +23,11 @@ export setpos!, setgene!, setchr!
 export calculate_poisson_disks, aggregate_expr, aggregate_meta
 
 
+include("Dynema_struct.jl")
 include("adjust_phenotype.jl")
 include("mapping.jl")
 include("pvalue.jl")
-include("Dynema_struct.jl")
+include("poisson_disk_sampling.jl")
 include("utils.jl")
 
 end
