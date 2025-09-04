@@ -3,7 +3,7 @@
     adjust_phenotype(f::FormulaTerm, pheno::AbstractVector, covariates::AbstractDataFrame)
 
 Adjust phenotype information for biological and technical covariates using 
-    ordinary least squares (OLS)
+    a Poisson Generalized Linear Model
 
 
 # Arguments
@@ -17,7 +17,7 @@ Adjust phenotype information for biological and technical covariates using
 
 # Return
 
-Vector with adjusted phenotype information (OLS residuals).
+Vector with adjusted phenotype information (raw residuals).
 
 """
 
@@ -30,19 +30,9 @@ function adjust_phenotype(f::FormulaTerm, pheno::AbstractVector, covariates::Abs
     f_res = apply_schema(f, schema_f)
     _, predexog = modelcols(f_res, covariates)
 
-    return ols_residuals(pheno, predexog)
+    m = GLM.glm(predexog, pheno, Poisson())
+    resid = pheno - predict(m)
 
-end
-
-
-
-function ols_residuals(y::AbstractVector, X::Matrix{Float64})
-
-    β = Vector{Float64}(undef, size(X, 2))
-    r = Vector{Float64}(undef, size(X, 1))
-    β .= X \ y
-    mul!(r, X, β)
-    @. r = y - r
-    return r
+    return resid
 
 end

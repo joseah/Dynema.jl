@@ -1,6 +1,7 @@
 module Dynema
 
 using WildBootTests
+using GLM
 using StatsBase
 using Distributed
 using DataFrames
