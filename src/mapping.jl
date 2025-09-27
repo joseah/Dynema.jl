@@ -58,7 +58,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, me
                     scorebs::Bool=false,
                     auxwttype::Symbol=:rademacher,
                     ml::Bool=false,
-                    bootstrapc::Bool=false,)
+                    bootstrapc::Bool=false)
 
         # Add expression and genotype data to covariates
         design = deepcopy(meta)
@@ -90,7 +90,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, me
         # --------------------- Run first round of bootstrapping --------------------- #
         test = wildboottest(R, r; resp = pheno, predexog = predexog, clustid = groups, 
                             rng = rng, ptype = ptype, reps = B[1] - 1,
-                            obsw = obsw, scorebs = scorebs, auxwttype = auxwttype,
+                            obswt = obswt, scorebs = scorebs, auxwttype = auxwttype,
                             ml = ml, bootstrapc = bootstrapc
                             )
         
@@ -105,7 +105,9 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, me
             for j in 2:length(B)
                 
                 test = wildboottest(R, r; resp = pheno, predexog = predexog, clustid = groups, 
-                                    rng = rng, ptype = ptype, reps = B[j])
+                                    rng = rng, ptype = ptype, reps = B[j],
+                                    obswt = obswt, scorebs = scorebs, auxwttype = auxwttype,
+                                    ml = ml, bootstrapc = bootstrapc)
                 boot_i = dist(test)[1, :]
                 boot = vcat(boot, boot_i)
                 counts = pass(stat, boot)
