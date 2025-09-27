@@ -1,6 +1,11 @@
 function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFrame,  meta::AbstractDataFrame, 
                     groups::AbstractDataFrame, bterm::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     r = [0],  ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66), 
+                    obswt::AbstractVector=[],
+                    scorebs::Bool=false,
+                    auxwttype::Symbol=:rademacher,
+                    bootstrapc::Bool=false,
+                    ml::Bool=false,
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
                     gene::Union{Nothing, String} = nothing,
                     chr::Union{Nothing, String, Int} = nothing)
@@ -19,7 +24,9 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
     results = @showprogress pmap(eachcol(geno)) do snp
         
         map_snp(snp; f = f, pheno = pheno, meta = design, groups = groups, bterm = bterm,
-                B = B, r = r, ptype = ptype, rboot = rboot, rng = rng)
+                B = B, r = r, ptype = ptype, rboot = rboot, rng = rng,
+                obsw = obsw, scorebs = scorebs, auxwttype = auxwttype,
+                ml = ml, bootstrapc = bootstrapc)
     end
     t1 = time()
     timewait = t1 - t0
@@ -46,7 +53,12 @@ end
 
 function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, meta::AbstractDataFrame,
                     groups::AbstractDataFrame, bterm::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
-                    r = [0],  ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66))
+                    r = [0],  ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66),
+                    obswt::AbstractVector=[],
+                    scorebs::Bool=false,
+                    auxwttype::Symbol=:rademacher,
+                    ml::Bool=false,
+                    bootstrapc::Bool=false,)
 
         # Add expression and genotype data to covariates
         design = deepcopy(meta)
@@ -77,7 +89,10 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, pheno::Vector{Float64}, me
         
         # --------------------- Run first round of bootstrapping --------------------- #
         test = wildboottest(R, r; resp = pheno, predexog = predexog, clustid = groups, 
-                            rng = rng, ptype = ptype, reps = B[1] - 1)
+                            rng = rng, ptype = ptype, reps = B[1] - 1,
+                            obsw = obsw, scorebs = scorebs, auxwttype = auxwttype,
+                            ml = ml, bootstrapc = bootstrapc
+                            )
         
         # Extract results
         stat = teststat(test)
