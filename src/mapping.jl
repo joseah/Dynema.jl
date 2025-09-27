@@ -25,7 +25,7 @@ function map_locus(f::FormulaTerm; pheno::Vector{Float64}, geno::AbstractDataFra
         
         map_snp(snp; f = f, pheno = pheno, meta = design, groups = groups, bterm = bterm,
                 B = B, r = r, ptype = ptype, rboot = rboot, rng = rng,
-                obsw = obsw, scorebs = scorebs, auxwttype = auxwttype,
+                obswt = obswt, scorebs = scorebs, auxwttype = auxwttype,
                 ml = ml, bootstrapc = bootstrapc)
     end
     t1 = time()
