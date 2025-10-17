@@ -5,13 +5,13 @@
 mutable struct DynemaModel
 
     const f::FormulaTerm
-    const bterm::String
+    const termtest::Union{String, Vector{String}}
     const ncells::Int
     const ndonors::Int
-    const sumstats::DataFrame
+    const summary::DataFrame
     const B::Vector{Int64}
     const bootdists::AbstractVector
-    const timewait::Float64
+    const time::Float64
     pos::Union{Nothing, Vector{Real}}
     gene::Union{Nothing, String}
     chr::Union{Nothing, String, Int}
@@ -24,76 +24,76 @@ end
 
 """
 
-`f(::Dynema.DynemaModel)`
+`get_f(::Dynema.DynemaModel)`
 
 Extract formula used for a DynemaModel
 """
 
-f(m::DynemaModel) = m.f
+get_f(m::DynemaModel) = m.f
 
 """
 
-`bterm(::Dynema.DynemaModel)`
+`get_termtest(::Dynema.DynemaModel)`
 
 Extract formula used for a DynemaModel
 """
 
-bterm(m::DynemaModel) = m.bterm
+get_termtest(m::DynemaModel) = m.termtest
 
 """
 
-`ncells(::Dynema.DynemaModel)`
+`get_ncell(::Dynema.DynemaModel)`
 
 Extract number of cells used for a DynemaModel
 """
 
-ncells(m::DynemaModel) = m.ncells
+get_ncell(m::DynemaModel) = m.ncells
 
 """
 
-`ndonors(::DynemaModel)`
+`get_ndonor(::DynemaModel)`
 
 Extract number of donors/individuals for a DynemaModel
 """
 
-ndonors(m::DynemaModel) = m.ndonors
+get_ndonor(m::DynemaModel) = m.ndonors
 
 """
 
-`sumstats(::Dynema.DynemaModel)`
+`get_summary(::Dynema.DynemaModel)`
 
 Extract all summary statistics for a DynemaModel
 """
 
-sumstats(m::DynemaModel) = m.sumstats
+get_summary(m::DynemaModel) = m.summary
 
 
 """
 
-`bstat(::Dynema.DynemaModel)`
+`get_stat(::Dynema.DynemaModel)`
 
 Extract bootstrapepd statistic for a DynemaModel
 """
 
-bstats(m::DynemaModel) = m.sumstats.stat
+get_stat(m::DynemaModel) = m.sumstats.stat
 
 """
 
-`coefs(::Dynema.DynemaModel)`
+`get_coefs(::Dynema.DynemaModel)`
 
 Extract OLS beta coefficients for all SNPS for the tested bootstrapped 'bterm' with a DynemaModel
 """
 
-coefs(m::DynemaModel) = m.sumstats.coef
+get_coef(m::DynemaModel) = m.sumstats.coef
 
 """
 
-`pvalues(::Dynema.DynemaModel)`
+`get_p(::Dynema.DynemaModel)`
 
 Extract empirical p-values for a DynemaModel
 """
 
-pvalues(m::DynemaModel) = m.sumstats.p
+get_p(m::DynemaModel) = m.sumstats.p
 
 
 """
@@ -103,7 +103,7 @@ pvalues(m::DynemaModel) = m.sumstats.p
 Extract SNP/genetic variant names provided as column names in genotypying data from a DynemaModel
 """
 
-snps(m::DynemaModel) = m.sumstats.snp
+get_snp(m::DynemaModel) = m.sumstats.snp
 
 
 """
@@ -114,7 +114,7 @@ Extract number of bootstrap iterations applied iteratively
 for a DynemaModel
 """
 
-B(m::DynemaModel) = m.B
+get_B(m::DynemaModel) = m.B
 
 
 """
@@ -124,58 +124,58 @@ B(m::DynemaModel) = m.B
 Extract bootstrap stat distributions for each SNP for a DynemaModel
 """
 
-bootdists(m::DynemaModel) = m.bootdists
+get_bootdists(m::DynemaModel) = m.bootdists
 
 
 """
 
-`timewait(::Dynema.DynemaModel)`
+`get_time(::Dynema.DynemaModel)`
 
-Extract elapsed time in seconds to map locus using Dynema
+Extract elapsed time in seconds to map each variant using Dynema
 """
 
-timewait(m::DynemaModel) = m.timewait
+get_time(m::DynemaModel) = m.time
 
 """
 
-`pos(::Dynema.DynemaModel)`
+`get_pos(::Dynema.DynemaModel)`
 
 Extract genomic position for each SNP
 """
 
-pos(m::DynemaModel) = m.pos
+get_pos(m::DynemaModel) = m.pos
 
 
 """
 
-`genename(::Dynema.DynemaModel)`
+`get_gene(::Dynema.DynemaModel)`
 
 Extract name for tested gene
 """
 
-genename(m::DynemaModel) = m.gene
+get_gene(m::DynemaModel) = m.gene
 
 
 
 """
 
-`genechr(::Dynema.DynemaModel)`
+`get_chr(::Dynema.DynemaModel)`
 
 Extract name for tested gene
 """
 
-genechr(m::DynemaModel) = m.chr
+get_chr(m::DynemaModel) = m.chr
 
 
 """
 
-`setpos(::Dynema.DynemaModel)`
+`set_pos(::Dynema.DynemaModel)`
 
 Sets positions for all SNPs/genetic variants for a DynemaModel
 """
 
 
-function setpos!(m::DynemaModel, pos::Union{Nothing, Vector{Int64}, Vector{Float64}})
+function set_pos!(m::DynemaModel, pos::Union{Nothing, Vector{Int64}, Vector{Float64}})
     m.pos = pos
     return m
 end
@@ -184,26 +184,26 @@ end
 
 """
 
-`setgene(::Dynema.DynemaModel)`
+`set_gene(::Dynema.DynemaModel)`
 
 Sets gene name for a DynemaModel
 """
 
 
-function setgene!(m::DynemaModel, gene::Union{Nothing, String})
+function set_gene!(m::DynemaModel, gene::Union{Nothing, String})
     m.gene = gene
     return m
 end
 
 """
 
-`setchr(::Dynema.DynemaModel)`
+`set_chr(::Dynema.DynemaModel)`
 
 Sets chromosome name for gene tested
 """
 
 
-function setchr!(m::DynemaModel, chr::Union{Nothing, String, Int})
+function set_chr!(m::DynemaModel, chr::Union{Nothing, String, Int})
     m.chr = chr
     return m
 end
@@ -216,56 +216,56 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
-    print(Crayon(foreground = :light_yellow, bold = true), "\nDynamic non-parametric eQTL mapping (Dynema) model\n\n")
-    print(Crayon(foreground = :green), "Wild cluster bootstrap via WildBootTests.jl\n\n")
-    print(Crayon(foreground = :blue), f(m), "\n\n")
+    print(Crayon(foreground = :light_yellow, bold = true), "\nDynamic eQTL mapping (Dynema) model\n\n")
+    print(Crayon(foreground = :green), "Score bootstrap via WildBootTests.jl\n\n")
+    print(Crayon(foreground = :blue), get_f(m), "\n\n")
 
-    if !isnothing(genename(m))
+    if !isnothing(get_gene(m))
             print(Crayon(reset = true, bold = true), "Gene name    = ")
-            println(Crayon(foreground = :green, bold = true), genename(m))
+            println(Crayon(foreground = :green, bold = true), get_gene(m))
     end
 
-    if !isnothing(genechr(m))
+    if !isnothing(get_chr(m))
             print(Crayon(reset = true, bold = true), "Gene chr.    = ")
-            println(Crayon(foreground = :green, bold = true), genechr(m))
+            println(Crayon(foreground = :green, bold = true), get_chr(m))
     end
 
 
-    print(Crayon(reset = true, bold = true), "Term tested   = ")
-    println(Crayon(foreground = :red, bold = true), bterm(m))
+    print(Crayon(reset = true, bold = true), "Term(s) tested   = ")
+    println(Crayon(foreground = :red, bold = true), get_termtest(m))
 
     
     print(Crayon(reset = true, bold = true), "N. bootstraps = ")
-    println(Crayon(foreground = :red, bold = true), "$(sum(B(m)))")
+    println(Crayon(foreground = :red, bold = true), "$(sum(get_B(m)))")
 
     
     print(Crayon(reset = true, bold = true), "N. SNPs       = ")
-    println(Crayon(foreground = :red, bold = true), "$(nrow(sumstats(m)))")
+    println(Crayon(foreground = :red, bold = true), "$(nrow(get_summary(m)))")
 
     
     print(Crayon(reset = true, bold = true), "N. cells      = ")
-    println(Crayon(foreground = :red, bold = true), "$(ncells(m))")
+    println(Crayon(foreground = :red, bold = true), "$(get_ncell(m))")
     
     print(Crayon(reset = true, bold = true), "N. donors     = ")
-    println(Crayon(foreground = :red, bold = true), "$(ndonors(m))")
+    println(Crayon(foreground = :red, bold = true), "$(get_ndonor(m))")
 
 
-    if nrow(sumstats(m)) >= 10
+    if nrow(get_summary(m)) >= 10
         
-        glance = first(sort(sumstats(m), [order(:p), order(:stat, by = abs, rev = true)]), 10)
-        push!(glance, fill("...", ncol(sumstats(m))), promote = true)
+        glance = first(sort(get_summary(m), [order(:p), order(:stat, by = abs, rev = true)]), 10)
+        push!(glance, fill("...", ncol(get_summary(m))), promote = true)
 
     else
 
-        glance = sumstats(m)
+        glance = get_summary(m)
 
     end
 
     println(Crayon(reset = true), "\nResults")
     pretty_table(glance, header = (names(glance)))
-    println("** smallest p-value = $(2/sum(B(m))); report as p < $(2/sum(B(m)))\n")
+    println("** smallest p-value computed= $(2/sum(get_B(m))); report as p < $(2/sum(get_B(m)))\n")
     
     print(Crayon(reset = true, bold = true), "Computation time = ")
-    println(Crayon(foreground = :green, bold = true), "$(round(timewait(m) / 60, sigdigits = 4)) mins.")
+    println(Crayon(foreground = :green, bold = true), "$(round(get_time(m) / 60, sigdigits = 4)) mins.")
 
 end

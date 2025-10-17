@@ -1,5 +1,5 @@
 function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFrame, meta::AbstractDataFrame, 
-                    groups::AbstractDataFrame, test::Vector{String}, H0::Float64 = 0, 
+                    groups::AbstractDataFrame, termtest::Union{String, Vector{String}}, H0::Float64 = 0, 
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66), 
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
@@ -19,9 +19,9 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFram
     # R
     terms = termnames(f)[2]
     R = falses(1, length(terms))
-    i_terms = [first(findall(bt .== terms)) for bt in test]
+    i_terms = [first(findall(bt .== terms)) for bt in termtest]
 
-    if length(i_terms) != length(test)
+    if length(i_terms) != length(termtest)
         throw("Term '$bterm' not found in formula. Verify the bootstrap term in included in the formula")
     else
         R[1, i_terms] .= true
@@ -75,7 +75,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFram
 
 
     # --------------------------- Create Dynema object --------------------------- #
-    res = DynemaModel(f, bterm, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist, timewait, pos, gene, chr)
+    res = DynemaModel(f, termtest, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist, timewait, pos, gene, chr)
 
 
     return(res)
@@ -85,7 +85,7 @@ end
 
 
 function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
-                    groups::Matrix, R::BitMatrix, r::Vector{Int64} = [0], B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
+                    groups::Matrix, R::BitMatrix, r::Vector{Float64}, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66))
 
         
