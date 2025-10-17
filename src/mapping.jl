@@ -1,6 +1,7 @@
-function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFrame,  meta::AbstractDataFrame, 
-                    groups::AbstractDataFrame, bterm::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
-                    r = [0],  ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66), 
+function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFrame, meta::AbstractDataFrame, 
+                    groups::AbstractDataFrame, test::Vector{String}, H0::Float64 = 0, 
+                    B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
+                    ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66), 
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
                     gene::Union{Nothing, String} = nothing,
                     chr::Union{Nothing, String, Int} = nothing)
@@ -13,17 +14,21 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFram
 
     design = deepcopy(meta)
 
-    # ------------------------------ Verify formula ------------------------------ #
+    # -------------------- Set R and r for hypothesis testing -------------------- #
 
+    # R
     terms = termnames(f)[2]
-        
-    R = terms .== bterm
+    R = falses(1, length(terms))
+    i_terms = [first(findall(bt .== terms)) for bt in test]
 
-    if !any(R)
+    if length(i_terms) != length(test)
         throw("Term '$bterm' not found in formula. Verify the bootstrap term in included in the formula")
     else
-        R = reshape(R, 1, length(R))
+        R[1, i_terms] .= true
     end
+
+    # r (by default zero)
+    r = [H0]
 
     # ----------------------- Add response term to formula ----------------------- #
 
@@ -53,8 +58,8 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFram
     t0 = time()
     results = @showprogress pmap(eachcol(geno)) do snp
         
-        map_snp(snp; f = f,  d = design, groups = groups, bterm = bterm,
-                B = B, R = R, r = r, ptype = ptype, rboot = rboot, rng = rng)
+        map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r,  
+                B = B, ptype = ptype, rboot = rboot, rng = rng)
     end
     t1 = time()
     timewait = t1 - t0
@@ -80,8 +85,8 @@ end
 
 
 function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
-                    groups::Matrix, bterm::String, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
-                    R::BitMatrix, r = [0],  ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66))
+                    groups::Matrix, R::BitMatrix, r::Vector{Int64} = [0], B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
+                    ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66))
 
         
         # Add expression and genotype data to covariates
