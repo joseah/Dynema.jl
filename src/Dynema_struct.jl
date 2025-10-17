@@ -75,7 +75,7 @@ get_summary(m::DynemaModel) = m.summary
 Extract bootstrapepd statistic for a DynemaModel
 """
 
-get_stat(m::DynemaModel) = m.sumstats.stat
+get_stat(m::DynemaModel) = m.summary.stat
 
 """
 
@@ -84,7 +84,7 @@ get_stat(m::DynemaModel) = m.sumstats.stat
 Extract OLS beta coefficients for all SNPS for the tested bootstrapped 'bterm' with a DynemaModel
 """
 
-get_coef(m::DynemaModel) = m.sumstats.coef
+get_coef(m::DynemaModel) = m.summary.coef
 
 """
 
@@ -93,7 +93,7 @@ get_coef(m::DynemaModel) = m.sumstats.coef
 Extract empirical p-values for a DynemaModel
 """
 
-get_p(m::DynemaModel) = m.sumstats.p
+get_p(m::DynemaModel) = m.summary.p
 
 
 """
@@ -103,7 +103,7 @@ get_p(m::DynemaModel) = m.sumstats.p
 Extract SNP/genetic variant names provided as column names in genotypying data from a DynemaModel
 """
 
-get_snp(m::DynemaModel) = m.sumstats.snp
+get_snp(m::DynemaModel) = m.summary.snp
 
 
 """
