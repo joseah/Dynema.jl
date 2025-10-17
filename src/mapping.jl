@@ -167,7 +167,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         pval_CRVE = 2 .*(1 .- cdf.(Normal(), abs.(stat)))
 
         # Gather results
-        res = (DataFrame(coef = b, stat = stat, p = pval, p_analytical = pval_CRVE, p_naive_analytical = p_naive_analytical))
+        res = (DataFrame(coef = b, stat = stat, p_analytical = pval_CRVE, p = pval,  p_naive_analytical = p_naive_analytical))
 
         if rboot
            res = (res, boot)

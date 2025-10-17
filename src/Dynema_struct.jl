@@ -250,14 +250,16 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     println(Crayon(foreground = :red, bold = true), "$(get_ndonor(m))")
 
 
-    if nrow(get_summary(m)) >= 10
+    summ = get_summary(m)[:, Not(:p_naive_analytical)]
+
+    if nrow(summ) >= 10
         
-        glance = first(sort(get_summary(m), [order(:p), order(:stat, by = abs, rev = true)]), 10)
-        push!(glance, fill("...", ncol(get_summary(m))), promote = true)
+        glance = first(sort(summ, [order(:p), order(:stat, by = abs, rev = true)]), 10)
+        push!(glance, fill("...", ncol(summ)), promote = true)
 
     else
 
-        glance = get_summary(m)
+        glance = summ
 
     end
 
