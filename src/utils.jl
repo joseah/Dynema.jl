@@ -5,7 +5,7 @@ function printlnv(args...; verbose = true)
 end
 
 
-function verify_nobs_map_locus(geno::AbstractDataFrame, pheno::Vector{Float64}, 
+function verify_nobs_map_locus(geno::AbstractDataFrame, pheno::AbstractVector, 
                                 meta::AbstractDataFrame, groups::AbstractDataFrame)
 
     geno_size = nrow(geno)
