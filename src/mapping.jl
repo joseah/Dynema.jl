@@ -94,7 +94,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 
         # ------------------------------- Build scores ------------------------------- #
         
-        p_naive_analytical = last(coeftable(pme).cols[4][vec(R)])
+        p_naive_analytical = last(coeftable(m).cols[4][vec(R)])
         X = modelmatrix(m)
         μ̂ = fitted(m)
         y = response(m)
