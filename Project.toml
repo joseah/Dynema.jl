@@ -1,7 +1,7 @@
 name = "Dynema"
 uuid = "bc27e32f-14b0-4d32-98d5-b88f38cd41e7"
-authors = ["Jose Alquicira-Hernandez"]
 version = "1.0.0-DEV"
+authors = ["Jose Alquicira-Hernandez"]
 
 [deps]
 BSplineKit = "093aae92-e908-43d7-9660-e50ee39d5a0a"
@@ -35,6 +35,7 @@ Distributions = "0.25.118"
 GLM = "1.9.0"
 KernelDensitySJ = "0.2.1"
 LinearAlgebra = "1.11.0"
+MixedModels = "5"
 NamedArrays = "0.10.3"
 NearestNeighborDescent = "0.3.6"
 Optim = "1.12.0"
