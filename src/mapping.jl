@@ -1,12 +1,23 @@
-function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFrame, meta::AbstractDataFrame, 
-                    groups::AbstractDataFrame, termtest::Union{String, Vector{String}}, H0::Float64 = Float64(0), 
+function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, meta::AbstractDataFrame, 
+                    groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, H0::Float64 = Float64(0), 
                     imposenull::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = StableRNG(66), 
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
                     gene::Union{Nothing, String} = nothing,
                     chr::Union{Nothing, String, Int} = nothing)
+
+    # --------------------- Vectorize arguments if necessary --------------------- #
+
+    # Vectorize genotype
+    geno = geno isa AbstractVector ? DataFrame(G = geno) : geno
     
+    # Vectorize term tested if only one is provided
+    termtest = termtest isa Vector{String} ? termtest : [termtest]
+
+     # Vectorize genotype
+    groups = groups isa AbstractVector ? DataFrame(cluster = groups) : groups
+
     # ------------- Validate dimensionality of input data structures ------------- #
 
     verify_nobs_map_locus(geno, pheno, meta, groups)
@@ -17,7 +28,9 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFram
 
     # -------------------- Set R and r for hypothesis testing -------------------- #
 
-    # R
+   
+
+    # Define R matrix
     terms = termnames(f)[2]
     R = falses(1, length(terms))
     i_terms = [first(findall(bt .== terms)) for bt in termtest]
