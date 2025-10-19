@@ -1,7 +1,8 @@
 function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFrame, meta::AbstractDataFrame, 
-                    groups::AbstractDataFrame, termtest::Union{String, Vector{String}}, H0::Float64 = 0, 
+                    groups::AbstractDataFrame, termtest::Union{String, Vector{String}}, H0::Float64 = Float64(0), 
+                    imposenull::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
-                    ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = MersenneTwister(66), 
+                    ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = StableRNG(66), 
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
                     gene::Union{Nothing, String} = nothing,
                     chr::Union{Nothing, String, Int} = nothing)
@@ -22,7 +23,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFram
     i_terms = [first(findall(bt .== terms)) for bt in termtest]
 
     if length(i_terms) != length(termtest)
-        throw("Term '$bterm' not found in formula. Verify the bootstrap term in included in the formula")
+        throw("Some termtest variables are not found in the formula. Verify all bootstrap terms tested are included")
     else
         R[1, i_terms] .= true
     end
@@ -58,7 +59,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::AbstractDataFram
     t0 = time()
     results = @showprogress pmap(eachcol(geno)) do snp
         
-        map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r,  
+        map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
                 B = B, ptype = ptype, rboot = rboot, rng = rng)
     end
     t1 = time()
@@ -85,28 +86,56 @@ end
 
 
 function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
-                    groups::Matrix, R::BitMatrix, r::Vector{Float64}, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
-                    ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = MersenneTwister(66))
+                    groups::Matrix, R::BitMatrix, r::Vector{Float64}, imposenull::Bool = true, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
+                    ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = StableRNG(66))
 
         
-        # Add expression and genotype data to covariates
+        # ------------- Add expression and genotype data to model matrix ------------- #
+
         design = deepcopy(d)
         design[!, :G] = Float64.(snp)
 
-        # Fit GLM
+        # ---------------------------------- Fit GLM --------------------------------- #
+        
         m = glm(f, design, Poisson(), LogLink())
 
+        # ------ Extract naive statistics (useful for diagnostics and debuggin) ------ #
+
+        p_naive = coeftable(m).cols[4][vec(R)]
+        p_naive = DataFrame(transpose(p_naive), "p_naive - " .* coefnames(m)[vec(R)])
+
+        # ---------------------- Extract predictors and response --------------------- #
+
+        X = modelmatrix(m)
+        y = response(m)
+
+        if imposenull
+            
+            # Impose null on model
+            f0 = FormulaTerm(f.lhs, f.rhs[.!vec(R)])
+            m0 = glm(f0, design, Poisson(), LogLink())
+
+            # Calculate betas and variance-covariance matrix of the unrestricted model
+            # at the solution of the restricted model.
+            # Scores will be calculated the same way too
+            betas0 = coef(m0)
+            betas = insert_zeros(vec(R), betas0)
+
+            μ̂ = fitted(m0)
+            A = (X' * (μ̂ .* X)) \ I
+
+        else
+
+            betas = coef(m)
+            μ̂ = fitted(m)
+            A = vcov(m)
+
+        end
+        
 
         # ------------------------------- Build scores ------------------------------- #
-        
-        p_naive_analytical = last(coeftable(m).cols[4][vec(R)])
-        X = modelmatrix(m)
-        μ̂ = fitted(m)
-        y = response(m)
-        A = vcov(m)
-        betas = coef(m)
-        scores = (y .- μ̂) .* X
 
+        scores = (y .- μ̂) .* X
 
         # --------------------- Run first round of bootstrapping --------------------- #
 
@@ -119,17 +148,16 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
                             clustid = groups, 
                             ml = true,
                             scorebs = true,
-                            imposenull = false,
+                            imposenull = imposenull,
+                            small = false,
                             rng = rng, ptype = ptype, reps = B[1] - 1)
-        
-
-
 
         # Extract results
-        stat = teststat(test)
+        statistic = teststat(test)
         boot = dist(test)[1, :]
-        counts = pass(stat, boot)
-        b = test.b
+        counts = pass(statistic, boot)
+
+        # ---------------- Remaining rounds of bootstrapping if needed --------------- #
 
         if counts <= 20
 
@@ -143,14 +171,15 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
                             clustid = groups, 
                             ml = true,
                             scorebs = true,
-                            imposenull = false,
+                            imposenull = imposenull,
+                            small = false,
                             rng = rng, ptype = ptype, 
                             reps = B[j])
                 
                 
                 boot_i = dist(test)[1, :]
                 boot = vcat(boot, boot_i)
-                counts = pass(stat, boot)
+                counts = pass(statistic, boot)
                 
                 if counts > 20
                     break
@@ -161,13 +190,31 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         end
 
         # Compute final p-value 
-        pval = compute_pvalue(stat, boot)
+        pval = compute_pvalue(statistic, boot)
 
-        # Calculate analytical cluster robust p-value
-        pval_CRVE = 2 .*(1 .- cdf.(Normal(), abs.(stat)))
+    
+        # -------------------------- Calculate CRVE p-value -------------------------- #
 
-        # Gather results
-        res = (DataFrame(coef = b, stat = stat, p_analytical = pval_CRVE, p = pval,  p_naive_analytical = p_naive_analytical))
+        vcov_cr = vcov(CR0(groups), m)
+        zr = coef(m) ./ sqrt.(diag(vcov_cr))
+        zr = zr[vec(R)]
+        pval_CRVE = [2 .*(1 .- cdf.(Normal(), abs.(x))) for x in zr]
+        pval_CRVE = DataFrame(transpose(pval_CRVE), "p_analytical - " .* coefnames(m)[vec(R)])
+
+
+        # ------------------- Extract betas from unrestricted model ------------------ #
+
+        betas = DataFrame(transpose(coef(m)), coefnames(m))
+
+        # ------------------------------ Gather results ------------------------------ #
+        
+        res = DataFrame(stat = statistic)
+        res = hcat(betas, res)
+        res = hcat(res, pval_CRVE)
+        res[!, :p_boot] = [pval]
+        res = hcat(res, p_naive)
+
+        # ---------------- Return bootstrap distributions if required ---------------- #
 
         if rboot
            res = (res, boot)

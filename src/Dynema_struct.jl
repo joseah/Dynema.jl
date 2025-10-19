@@ -249,8 +249,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     print(Crayon(reset = true, bold = true), "N. donors     = ")
     println(Crayon(foreground = :red, bold = true), "$(get_ndonor(m))")
 
-
-    summ = get_summary(m)[:, Not(:p_naive_analytical)]
+    summ = get_summary(m)[:, .!occursin.("p_naive", names(get_summary(m)))]
 
     if nrow(summ) >= 10
         

@@ -34,3 +34,25 @@ function verify_nobs_map_locus(geno::AbstractDataFrame, pheno::AbstractVector,
 
 
 end
+
+
+# Assume:
+# R is a BitVector (or any logical vector)
+# betas0 is a vector with length equal to count(!, R) (i.e., number of `false` in R)
+# We want a new vector betas_filled of same size as R, where:
+#   - betas_filled[i] = betas0[j] if !R[i]
+#   - betas_filled[i] = 0       if R[i]
+
+function insert_zeros(R::AbstractVector{Bool}, betas0::AbstractVector)
+    betas_filled = similar(R, eltype(betas0))  # create output vector of correct type
+    idx_betas0 = 1
+    for i in eachindex(R)
+        if R[i]
+            betas_filled[i] = 0
+        else
+            betas_filled[i] = betas0[idx_betas0]
+            idx_betas0 += 1
+        end
+    end
+    return betas_filled
+end
