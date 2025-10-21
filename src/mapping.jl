@@ -1,6 +1,55 @@
-function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, meta::AbstractDataFrame, 
-                    groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, H0::Float64 = Float64(0), 
-                    imposenull::Bool = true,
+"""
+
+`map_locus([f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, 
+            meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}},
+             <optional keyword arguments>) -> Dynema.Dynema_struct`
+
+Performs a single-cell eQTL mappping for a gene. All data arguments are defined at the single-cell level observation.
+
+# Mandatory arguments
+
+- `f`: Modelling formula focused on predictors. Should include all the terms to be tested and covariates. As genotype information 
+can change when iterating across variants, `G` is reserved to represent genotype information for each genetic variant. For example,
+a minimal formula can be defined as `0 ~ 1 + G`, where `1` is the intercept term and `G` represents the genetic variant being tested.
+Gene expression can be represented with no name simply as `0`.
+- `pheno`: Gene expression counts for a particular gene. A vector of length n, where _n_ is the number of cells
+- `geno`: Genotype information in allele dosage format or genotype probabilities (e.g. [0, 2, 1, 0, 1]) 
+expanded at the single-cell level (length _n_). If a DataFrame is provided, each column should correspond to an individual
+genetic variant and all variants will be tested. The dimensions of `geno` should be (_n_ x _gv_), where _gv_ is the total number 
+of variants
+-  `meta`: Single-cell level metadata including single-cell cell states of interest. It also should include
+single-cell and donor-level covariates expanded at the single-cell level. Dimensions _n_ x _p_, where _p_ is the
+number of variables
+- `groups`: A Vector or DataFrame indicating how cells should be grouped. At least one grouping variable should be 
+specified (e.g. donor structure). For example ["donor1", "donor2", "donor1", "donor3"].
+- `termtest`: Term included in the formula that is tested. In the case of dynamic effects, this should be the interaction
+`G` and a single-cell covariate (e.g. "G & CV1")
+
+# Optional arguments
+
+- `parallel`: Runs in parallel via `Distrbuted.jl` with `pmap`
+- `H0`: Null hypothesis value. By default `0`
+- `imposenull`: Logical inditicating whether to impose a null in the bootstrap data generating process (DGP). If true, a score test 
+is applied, otherwise a wald test is used
+- B: Number of bootstrap iterations to apply. By default 39999 iterations at apply to achieve a p-value of 5 x 10^-5 for a two-tail test. 
+For adaptive bootstrapping, the number of iterations might be specified as a vector indicating the number of iterations
+to perform in each step
+- ptype: Type of bootstrap p-value to return (:equaltail, :symmetric)
+- rboot: Whether to return the bootstrap distributions for each variant. Useful for direct assessment of bootstrap statistics and
+internal debugging
+- rng: Random number generator
+- pos: A numeric value specifying a genomic location for each genetic variant. Stored in final output for convenience
+- gene: Name of the gene being tested. Stored in final output for convenience
+- chr: Chromosome position of gene being tested. Stored in final output for convenience.
+"""
+
+
+
+
+function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, 
+                    meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, 
+                    parallel = false,
+                    H0::Float64 = Float64(0), imposenull::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = StableRNG(66), 
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
@@ -17,6 +66,9 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
 
      # Vectorize genotype
     groups = groups isa AbstractVector ? DataFrame(cluster = groups) : groups
+
+    # Vectorize B
+    B = B isa AbstractVector ? B : [B]
 
     # ------------- Validate dimensionality of input data structures ------------- #
 
@@ -70,10 +122,22 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
     # ------------ Run association for each SNP in input genotype data ----------- #
 
     t0 = time()
-    results = @showprogress pmap(eachcol(geno)) do snp
-        
-        map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                B = B, ptype = ptype, rboot = rboot, rng = rng)
+
+    results = if parallel
+
+        @showprogress pmap(eachcol(geno)) do snp
+            
+            map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
+                    B = B, ptype = ptype, rboot = rboot, rng = rng)
+        end
+
+    else
+        @showprogress map(eachcol(geno)) do snp
+            
+            map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
+                    B = B, ptype = ptype, rboot = rboot, rng = rng)
+        end
+
     end
     t1 = time()
     timewait = t1 - t0
