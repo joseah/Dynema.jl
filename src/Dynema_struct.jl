@@ -77,14 +77,6 @@ Extract bootstrapepd statistic for a DynemaModel
 
 get_stat(m::DynemaModel) = m.summary.stat
 
-"""
-
-`get_coefs(::Dynema.DynemaModel)`
-
-Extract OLS beta coefficients for all SNPS for the tested bootstrapped 'bterm' with a DynemaModel
-"""
-
-get_coef(m::DynemaModel) = m.summary.coef
 
 """
 
@@ -93,12 +85,12 @@ get_coef(m::DynemaModel) = m.summary.coef
 Extract empirical p-values for a DynemaModel
 """
 
-get_p(m::DynemaModel) = m.summary.p
+get_p(m::DynemaModel) = m.summary.p_boot
 
 
 """
 
-`snps(::Dynema.DynemaModel)`
+`get_snp(::Dynema.DynemaModel)`
 
 Extract SNP/genetic variant names provided as column names in genotypying data from a DynemaModel
 """
@@ -108,7 +100,7 @@ get_snp(m::DynemaModel) = m.summary.snp
 
 """
 
-`B(::Dynema.DynemaModel)`
+`get_B(::Dynema.DynemaModel)`
 
 Extract number of bootstrap iterations applied iteratively 
 for a DynemaModel
@@ -119,7 +111,7 @@ get_B(m::DynemaModel) = m.B
 
 """
 
-`bootdists(::Dynema.DynemaModel)`
+`get_bootdists(::Dynema.DynemaModel)`
 
 Extract bootstrap stat distributions for each SNP for a DynemaModel
 """
@@ -131,7 +123,7 @@ get_bootdists(m::DynemaModel) = m.bootdists
 
 `get_time(::Dynema.DynemaModel)`
 
-Extract elapsed time in seconds to map each variant using Dynema
+Extract total elapsed time in seconds
 """
 
 get_time(m::DynemaModel) = m.time

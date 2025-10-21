@@ -20,7 +20,8 @@ using StableRNGs
 using CovarianceMatrices
 
 export map_locus
-export get_f, get_termtest, get_ncell, get_ndonor, get_summary, get_stat, get_coef, get_p, get_snp, get_B, get_bootdists
+export get_f, get_termtest, get_ncell, get_ndonor, get_summary
+export get_stat, get_p, get_snp, get_B, get_bootdists, get_time
 export get_pos, get_gene, get_chr
 export set_pos!, set_gene!, set_chr!
 export calculate_poisson_disks, aggregate_expr, aggregate_meta, uniq
