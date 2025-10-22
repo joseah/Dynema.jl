@@ -245,7 +245,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     if nrow(summ) >= 10
         
-        glance = first(sort(summ, [order(:p), order(:stat, by = abs, rev = true)]), 10)
+        glance = first(sort(summ, [order(:p_boot), order(:stat, by = abs, rev = true)]), 10)
         push!(glance, fill("...", ncol(summ)), promote = true)
 
     else
