@@ -1,7 +1,7 @@
 name = "Dynema"
 uuid = "bc27e32f-14b0-4d32-98d5-b88f38cd41e7"
-authors = ["Jose Alquicira-Hernandez"]
 version = "1.0.0-DEV"
+authors = ["Jose Alquicira-Hernandez"]
 
 [deps]
 BSplineKit = "093aae92-e908-43d7-9660-e50ee39d5a0a"
@@ -46,6 +46,7 @@ PrettyTables = "2.4.0"
 ProgressMeter = "1.10.2"
 StableRNGs = "1.0.3"
 StaticArrays = "1.9.12"
+StatsBase = "0.34"
 WildBootTests = "1.0.1"
 julia = "1.6.7"
 
