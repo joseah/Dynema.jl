@@ -6,7 +6,6 @@ authors = ["Jose Alquicira-Hernandez"]
 [deps]
 BSplineKit = "093aae92-e908-43d7-9660-e50ee39d5a0a"
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
-CovarianceMatrices = "60f91f6f-d783-54cb-84f9-544141854719"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
@@ -33,7 +32,6 @@ WildBootTests = "65c2e505-86ba-4c19-93f1-95506c1443d5"
 [compat]
 BSplineKit = "0.17.7"
 CategoricalArrays = "0.10.8"
-CovarianceMatrices = "0.22.0"
 Distances = "0.10.12"
 Distributions = "0.25.118"
 GLM = "1.9.0"
