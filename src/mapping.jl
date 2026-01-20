@@ -126,15 +126,16 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
     results = if parallel
 
         @showprogress pmap(eachcol(geno)) do snp
-            
-            map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
+
+            safe_map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
                     B = B, ptype = ptype, rboot = rboot, rng = rng)
+
         end
 
     else
         @showprogress map(eachcol(geno)) do snp
             
-            map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
+            safe_map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
                     B = B, ptype = ptype, rboot = rboot, rng = rng)
         end
 
@@ -144,8 +145,26 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
 
     # ------------------------ Collect summary statistics ------------------------ #
 
+    failed_snps = isnothing.(results)
+
+    snp_names = if any(failed_snps)
+        
+        failed_snps_names = names(geno)[failed_snps]
+        println(Crayon(foreground = :yellow), "The following SNPs failed:\n$(join(failed_snps_names, '\n'))")
+        println(Crayon(foreground = :red), "Removing failed SNPs from output...")
+        results = results[Not(failed_snps)]
+        
+        names(geno)[Not(failed_snps)]
+
+    else
+
+        names(geno)
+
+    end
+
+
     summ_stats = rboot ? reduce(vcat, [first(x) for x in results]) : vcat(results...)
-    insertcols!(summ_stats, 1, :snp => names(geno))
+    insertcols!(summ_stats, 1, :snp => snp_names)
     
     # ---------------- Collect bootstrap distribution if necessary --------------- #
 
@@ -318,4 +337,15 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 
         return res
 
+end
+
+
+function safe_map_snp(snp; kwargs...)
+    try
+        map_snp(snp; kwargs...)
+    catch err
+        bt = catch_backtrace()
+        @warn "map_snp failed for a SNP" exception = (err, bt)
+        nothing
+    end
 end
