@@ -229,18 +229,18 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     
     print(Crayon(reset = true, bold = true), "N. bootstraps = ")
-    println(Crayon(foreground = :red, bold = true), "$(sum(get_B(m)))")
+    println(Crayon(foreground = :green, bold = true), "$(sum(get_B(m)))")
 
     
     print(Crayon(reset = true, bold = true), "N. SNPs       = ")
-    println(Crayon(foreground = :red, bold = true), "$(nrow(get_summary(m)))")
+    println(Crayon(foreground = :green, bold = true), "$(nrow(get_summary(m)))")
 
     
     print(Crayon(reset = true, bold = true), "N. cells      = ")
-    println(Crayon(foreground = :red, bold = true), "$(get_ncell(m))")
+    println(Crayon(foreground = :green, bold = true), "$(get_ncell(m))")
     
     print(Crayon(reset = true, bold = true), "N. donors     = ")
-    println(Crayon(foreground = :red, bold = true), "$(get_ndonor(m))")
+    println(Crayon(foreground = :green, bold = true), "$(get_ndonor(m))")
 
     summ = get_summary(m)
 
