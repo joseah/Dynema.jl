@@ -12,6 +12,7 @@ mutable struct DynemaModel
     const B::Vector{Int64}
     const bootdists::AbstractVector
     const time::Float64
+    const imposenull::Bool
     pos::Union{Nothing, Vector{Real}}
     gene::Union{Nothing, String}
     chr::Union{Nothing, String, Int}
@@ -85,7 +86,7 @@ get_stat(m::DynemaModel) = m.summary.stat
 Extract empirical p-values for a DynemaModel
 """
 
-get_p(m::DynemaModel) = m.summary.p_boot
+get_p(m::DynemaModel) = m.summary.p
 
 
 """
@@ -241,11 +242,11 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     print(Crayon(reset = true, bold = true), "N. donors     = ")
     println(Crayon(foreground = :red, bold = true), "$(get_ndonor(m))")
 
-    summ = get_summary(m)[:, .!occursin.("p_naive", names(get_summary(m)))]
+    summ = get_summary(m)
 
     if nrow(summ) >= 10
         
-        glance = first(sort(summ, [order(:p_boot), order(:stat, by = abs, rev = true)]), 10)
+        glance = first(sort(summ, [order(:p), order(:stat, by = abs, rev = true)]), 10)
         push!(glance, fill("...", ncol(summ)), promote = true)
 
     else

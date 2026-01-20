@@ -153,7 +153,8 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
 
 
     # --------------------------- Create Dynema object --------------------------- #
-    res = DynemaModel(f, termtest, nrow(design), length(unique(groups[:, 1])), summ_stats, B, boot_dist, timewait, pos, gene, chr)
+    res = DynemaModel(f, termtest, nrow(design), length(unique(groups[:, 1])), summ_stats, 
+                        B, boot_dist, timewait, imposenull, pos, gene, chr)
 
 
     return(res)
@@ -170,16 +171,12 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         # ------------- Add expression and genotype data to model matrix ------------- #
 
         design = deepcopy(d)
+        # snp = geno[:, 1]
         design[!, :G] = Float64.(snp)
 
         # ---------------------------------- Fit GLM --------------------------------- #
         
         m = glm(f, design, Poisson(), LogLink())
-
-        # ------ Extract naive statistics (useful for diagnostics and debuggin) ------ #
-
-        p_naive = coeftable(m).cols[4][vec(R)]
-        p_naive = DataFrame(transpose(p_naive), "p_naive - " .* coefnames(m)[vec(R)])
 
         # ---------------------- Extract predictors and response --------------------- #
 
@@ -272,12 +269,35 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
     
         # -------------------------- Calculate CRVE p-value -------------------------- #
 
-        vcov_cr = vcov(CR0(groups), m)
-        zr = coef(m) ./ sqrt.(diag(vcov_cr))
-        zr = zr[vec(R)]
-        pval_CRVE = [2 .*(1 .- cdf.(Normal(), abs.(x))) for x in zr]
-        pval_CRVE = DataFrame(transpose(pval_CRVE), "p_analytical - " .* coefnames(m)[vec(R)])
 
+        p_analytical = if imposenull
+
+               scoretest(R, r; 
+                            resp = y, 
+                            scores = scores,
+                            beta = betas,
+                            A = A,
+                            clustid = groups, 
+                            ml = true,
+                            scorebs = true,
+                            imposenull = false,
+                            small = false)
+        
+        else
+
+                waldtest(R, r; 
+                            resp = y, 
+                            scores = scores,
+                            beta = betas,
+                            A = A,
+                            clustid = groups, 
+                            ml = true,
+                            scorebs = true,
+                            small = false)
+        end
+
+        
+     
 
         # ------------------- Extract betas from unrestricted model ------------------ #
 
@@ -286,10 +306,9 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         # ------------------------------ Gather results ------------------------------ #
         
         res = DataFrame(stat = statistic)
-        res = hcat(betas, res)
-        res = hcat(res, pval_CRVE)
-        res[!, :p_boot] = [pval]
-        res = hcat(res, p_naive)
+        res[!, :p] = [pval]
+        res[!, :p_analytical] = [p_analytical.p]
+        res = hcat(res, betas)
 
         # ---------------- Return bootstrap distributions if required ---------------- #
 
