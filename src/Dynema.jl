@@ -17,7 +17,6 @@ using Distributions
 using PrettyTables
 using ProgressMeter
 using StableRNGs
-using CovarianceMatrices
 
 export map_locus
 export get_f, get_termtest, get_ncell, get_ndonor, get_summary

@@ -1,7 +1,7 @@
 name = "Dynema"
 uuid = "bc27e32f-14b0-4d32-98d5-b88f38cd41e7"
-authors = ["Jose Alquicira-Hernandez"]
 version = "1.0.0-DEV"
+authors = ["Jose Alquicira-Hernandez"]
 
 [deps]
 BSplineKit = "093aae92-e908-43d7-9660-e50ee39d5a0a"
@@ -19,6 +19,7 @@ NamedArrays = "86f7a689-2022-50b4-a561-43c23ac3c673"
 NearestNeighborDescent = "dd2c4c9e-a32f-5b2f-b342-08c2f244fce8"
 NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PooledArrays = "2dfb63ee-cc39-5dd5-95bd-886bf059d720"
 PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
@@ -41,6 +42,7 @@ LinearAlgebra = "1.11.0"
 NamedArrays = "0.10.3"
 NearestNeighborDescent = "0.3.6"
 Optim = "1.12.0"
+Plots = "1.41.4"
 PooledArrays = "1.4.3"
 PrettyTables = "2.4.0"
 ProgressMeter = "1.10.2"
