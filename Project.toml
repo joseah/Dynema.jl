@@ -32,6 +32,7 @@ WildBootTests = "65c2e505-86ba-4c19-93f1-95506c1443d5"
 [compat]
 BSplineKit = "0.17.7"
 CategoricalArrays = "0.10.8"
+DataFrames = "1"
 Distances = "0.10.12"
 Distributions = "0.25.118"
 GLM = "1.9.0"
