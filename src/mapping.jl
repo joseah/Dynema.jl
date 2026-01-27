@@ -84,17 +84,18 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
 
     # Define R matrix
     terms = termnames(f)[2]
-    R = falses(1, length(terms))
+    R = falses(length(termtest), length(terms))
     i_terms = [first(findall(bt .== terms)) for bt in termtest]
 
     if length(i_terms) != length(termtest)
         throw("Some termtest variables are not found in the formula. Verify all bootstrap terms tested are included")
     else
-        R[1, i_terms] .= true
+        for i in 1:length(termtest)
+            R[i, i_terms[i]] = true
+        end
     end
 
-    # r (by default zero)
-    r = [H0]
+    r = fill(H0, length(i_terms))
 
     # ----------------------- Add response term to formula ----------------------- #
 
@@ -205,14 +206,15 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         if imposenull
             
             # Impose null on model
-            f0 = FormulaTerm(f.lhs, f.rhs[.!vec(R)])
+            v = vec(any(R, dims=1))
+            f0 = FormulaTerm(f.lhs, f.rhs[.!vec(v)])
             m0 = glm(f0, design, Poisson(), LogLink())
 
             # Calculate betas and variance-covariance matrix of the unrestricted model
             # at the solution of the restricted model.
             # Scores will be calculated the same way too
             betas0 = coef(m0)
-            betas = insert_zeros(vec(R), betas0)
+            betas = insert_zeros(vec(v), betas0)
 
             μ̂ = fitted(m0)
             A = (X' * (μ̂ .* X)) \ I
