@@ -301,7 +301,6 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
                             clustid = groups, 
                             ml = true,
                             scorebs = true,
-                            imposenull = false,
                             small = false)
         
         else
