@@ -1,13 +1,27 @@
 
-function pass(stat, boot)
-    minimum([sum(stat .> boot), sum(stat .< boot)])
+function pass(stat, boot, stattype)
+
+    if stattype == "z"
+        minimum([sum(stat .> boot), sum(stat .< boot)])
+    elseif stattype == "χ²"
+        sum(boot .>= stat)
+    end
+    
 end
 
-function compute_pvalue(stat, boot)
+function compute_pvalue(stat, boot, stattype)
+    
+    pass_obs = pass(stat, boot, stattype)
 
-    pass_obs = pass(stat, boot)
-    pval = pass_obs == 0 ? 2 / (length(boot) + 1) : 2 * pass_obs / length(boot)
-    return pval
+    if stattype == "z"
+        
+        pass_obs == 0 ? 2 / (length(boot) + 1) : 2 * pass_obs / length(boot)
+
+    elseif stattype == "χ²"
+
+        pass_obs == 0 ? 1 / (length(boot) + 1) : pass_obs / length(boot)
+    
+    end
 
 end
 

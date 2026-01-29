@@ -232,63 +232,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 
         scores = (y .- μ̂) .* X
 
-        # --------------------- Run first round of bootstrapping --------------------- #
-
-
-        test = wildboottest(R, r; 
-                            resp = y, 
-                            scores = scores,
-                            beta = betas,
-                            A = A,
-                            clustid = groups, 
-                            ml = true,
-                            scorebs = true,
-                            imposenull = imposenull,
-                            small = false,
-                            rng = rng, ptype = ptype, reps = B[1] - 1)
-
-        # Extract results
-        statistic = teststat(test)
-        boot = dist(test)[1, :]
-        counts = pass(statistic, boot)
-
-        # ---------------- Remaining rounds of bootstrapping if needed --------------- #
-
-        if counts <= 20
-
-            for j in 2:length(B)
-                
-                test = wildboottest(R, r; 
-                            resp = y, 
-                            scores = scores,
-                            beta = betas,
-                            A = A,
-                            clustid = groups, 
-                            ml = true,
-                            scorebs = true,
-                            imposenull = imposenull,
-                            small = false,
-                            rng = rng, ptype = ptype, 
-                            reps = B[j])
-                
-                
-                boot_i = dist(test)[1, :]
-                boot = vcat(boot, boot_i)
-                counts = pass(statistic, boot)
-                
-                if counts > 20
-                    break
-                end
-            
-            end
-
-        end
-
-        # Compute final p-value 
-        pval = compute_pvalue(statistic, boot)
-
-    
-        # -------------------------- Calculate CRVE p-value -------------------------- #
+        # ------------------------Calculate analytical p-value------------------------ #
 
 
         p_analytical = if imposenull
@@ -316,8 +260,31 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
                             small = false)
         end
 
+        # --------------------- Run first round of bootstrapping --------------------- #
+
+
+        test = wildboottest(R, r; 
+                            resp = y, 
+                            scores = scores,
+                            beta = betas,
+                            A = A,
+                            clustid = groups, 
+                            ml = true,
+                            scorebs = true,
+                            imposenull = imposenull,
+                            small = false,
+                            rng = rng, ptype = ptype, reps = B[1] - 1)
+
+        # Extract results
+        statistic = teststat(test)
+        boot = dist(test)[1, :]
+        stattype = test.stattype
+        counts = pass(statistic, boot, stattype)
+
+        # ---------------- Remaining rounds of bootstrapping if needed --------------- #
         
-     
+        # Compute final p-value 
+        pval = compute_pvalue(statistic, boot, stattype)
 
         # ------------------- Extract betas from unrestricted model ------------------ #
 
@@ -325,7 +292,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 
         # ------------------------------ Gather results ------------------------------ #
         
-        res = DataFrame(stat = statistic)
+        res = DataFrame(stattype => statistic)
         res[!, :p] = [pval]
         res[!, :p_analytical] = [p_analytical.p]
         res = hcat(res, betas)
