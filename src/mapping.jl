@@ -232,7 +232,8 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 
         scores = (y .- μ̂) .* X
 
-        # ------------------------Calculate analytical p-value------------------------ #
+
+         # -------------------------- Calculate CRVE p-value -------------------------- #
 
 
         p_analytical = if imposenull
@@ -282,9 +283,40 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         counts = pass(statistic, boot, stattype)
 
         # ---------------- Remaining rounds of bootstrapping if needed --------------- #
-        
+
+        if counts <= 20
+
+            for j in 2:length(B)
+                
+                test = wildboottest(R, r; 
+                            resp = y, 
+                            scores = scores,
+                            beta = betas,
+                            A = A,
+                            clustid = groups, 
+                            ml = true,
+                            scorebs = true,
+                            imposenull = imposenull,
+                            small = false,
+                            rng = rng, ptype = ptype, 
+                            reps = B[j])
+                
+                
+                boot_i = dist(test)[1, :]
+                boot = vcat(boot, boot_i)
+                counts = pass(statistic, boot, stattype)
+                
+                if counts > 20
+                    break
+                end
+            
+            end
+
+        end
+
         # Compute final p-value 
         pval = compute_pvalue(statistic, boot, stattype)
+     
 
         # ------------------- Extract betas from unrestricted model ------------------ #
 
