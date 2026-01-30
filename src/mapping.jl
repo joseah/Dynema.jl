@@ -31,15 +31,17 @@ specified (e.g. donor structure). For example ["donor1", "donor2", "donor1", "do
 - `H0`: Null hypothesis value. By default `0`
 - `imposenull`: Logical inditicating whether to impose a null in the bootstrap data generating process (DGP). If true, a score test 
 is applied, otherwise a wald test is used
-- B: Number of bootstrap iterations to apply. By default 39999 iterations at apply to achieve a p-value of 5 x 10^-5 for a two-tail test. 
+- `compute_betas`: Whether to compute betas from the full model when using a score test
+- `boot`: Apply score bootstrapping? If false, analytical p-values using a CRVE are returned
+- `B``: Number of bootstrap iterations to apply. By default 39999 iterations at apply to achieve a p-value of 5 x 10^-5 for a two-tail test. 
 For adaptive bootstrapping, the number of iterations might be specified as a vector indicating the number of iterations
 to perform in each step
-- ptype: Type of bootstrap p-value to return (:equaltail, :symmetric)
-- rboot: Whether to return the bootstrap distributions for each variant. Useful for direct assessment of bootstrap statistics and
+- `ptype``: Type of bootstrap p-value to return (:equaltail, :symmetric). Only applicable when one term is being tested.
+- `rboot``: Whether to return the bootstrap distributions for each variant. Useful for direct assessment of bootstrap statistics and
 internal debugging
-- pos: A numeric value specifying a genomic location for each genetic variant. Stored in final output for convenience
-- gene: Name of the gene being tested. Stored in final output for convenience
-- chr: Chromosome position of gene being tested. Stored in final output for convenience.
+- `pos``: A numeric value specifying a genomic location for each genetic variant. Stored in final output for convenience
+- `gene``: Name of the gene being tested. Stored in final output for convenience
+- `chr``: Chromosome position of gene being tested. Stored in final output for convenience.
 """
 
 
@@ -48,7 +50,7 @@ internal debugging
 function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, 
                     meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, 
                     parallel = false,
-                    H0::Float64 = Float64(0), imposenull::Bool = true, compute_betas::Bool=false,
+                    H0::Float64 = Float64(0), imposenull::Bool = true, compute_betas::Bool=true,
                     boot::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = false,
