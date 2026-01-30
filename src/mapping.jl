@@ -1,8 +1,8 @@
 """
 
-`map_locus([f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, 
-            meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}},
-             <optional keyword arguments>) -> Dynema.Dynema_struct`
+    map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector},
+              meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector},
+              termtest::Union{String, Vector{String}}) -> Dynema_struct
 
 Performs a single-cell eQTL mappping for a gene. All data arguments are defined at the single-cell level observation.
 
@@ -36,17 +36,13 @@ is applied, otherwise a wald test is used
 - `B``: Number of bootstrap iterations to apply. By default 39999 iterations at apply to achieve a p-value of 5 x 10^-5 for a two-tail test. 
 For adaptive bootstrapping, the number of iterations might be specified as a vector indicating the number of iterations
 to perform in each step
-- `ptype``: Type of bootstrap p-value to return (:equaltail, :symmetric). Only applicable when one term is being tested.
-- `rboot``: Whether to return the bootstrap distributions for each variant. Useful for direct assessment of bootstrap statistics and
+- `ptype`: Type of bootstrap p-value to return (:equaltail, :symmetric). Only applicable when one term is being tested.
+- `rboot`: Whether to return the bootstrap distributions for each variant. Useful for direct assessment of bootstrap statistics and
 internal debugging
-- `pos``: A numeric value specifying a genomic location for each genetic variant. Stored in final output for convenience
-- `gene``: Name of the gene being tested. Stored in final output for convenience
-- `chr``: Chromosome position of gene being tested. Stored in final output for convenience.
+- `pos`: A numeric value specifying a genomic location for each genetic variant. Stored in final output for convenience
+- `gene`: Name of the gene being tested. Stored in final output for convenience
+- `chr`: Chromosome position of gene being tested. Stored in final output for convenience.
 """
-
-
-
-
 function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, 
                     meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, 
                     parallel = false,
