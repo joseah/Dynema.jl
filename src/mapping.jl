@@ -221,8 +221,8 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
             betas = insert_zeros(vec(v), betas0)
 
             μ̂ = fitted(m0)
-            # A = (X' * (μ̂ .* X)) \ I
-            A = X' * (Diagonal(μ̂) * X) \ I
+             A = (X' * (μ̂ .* X)) \ I
+            #A = X' * (Diagonal(μ̂) * X) \ I
 
         else
         
