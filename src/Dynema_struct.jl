@@ -13,6 +13,8 @@ mutable struct DynemaModel
     const bootdists::AbstractVector
     const time::Float64
     const imposenull::Bool
+    const boot::Bool
+    const stattype::String
     pos::Union{Nothing, Vector{Real}}
     gene::Union{Nothing, String}
     chr::Union{Nothing, String, Int}
@@ -129,7 +131,38 @@ Extract total elapsed time in seconds
 
 get_time(m::DynemaModel) = m.time
 
+
 """
+`get_stattype(::Dynema.DynemaModel)`
+
+Extract statistic type (z or χ²)
+"""
+
+get_stattype(m::DynemaModel) = m.stattype
+
+
+
+"""
+`get_testtype(::Dynema.DynemaModel)`
+
+Whether a score or wald test were performed
+"""
+
+get_testtype(m::DynemaModel) = m.imposenull ? "Score/lagrange multiplier" : "Wald"
+
+"""
+
+
+`get_boot(::Dynema.DynemaModel)`
+
+Determine whether bootstrapping was perfomed
+"""
+
+get_boot(m::DynemaModel) = m.boot
+
+
+"""
+
 
 `get_pos(::Dynema.DynemaModel)`
 
@@ -242,11 +275,14 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     print(Crayon(reset = true, bold = true), "N. donors     = ")
     println(Crayon(foreground = :green, bold = true), "$(get_ndonor(m))")
 
+    print(Crayon(reset = true, bold = true), "Test type     = ")
+    println(Crayon(foreground = :green, bold = true), "$(get_testtype(m))")
+
     summ = get_summary(m)
 
     if nrow(summ) >= 10
         
-        glance = first(sort(summ, [order(:p), order(:stat, by = abs, rev = true)]), 10)
+        glance = first(sort(summ, [order(:p), order(get_stattype(m), by = abs, rev = true)]), 10)
         push!(glance, fill("...", ncol(summ)), promote = true)
 
     else

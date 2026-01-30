@@ -49,7 +49,8 @@ internal debugging
 function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, 
                     meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, 
                     parallel = false,
-                    H0::Float64 = Float64(0), imposenull::Bool = true,
+                    H0::Float64 = Float64(0), imposenull::Bool = true, compute_betas::Bool=false,
+                    boot::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = StableRNG(66), 
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
@@ -129,7 +130,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
         @showprogress pmap(eachcol(geno)) do snp
 
             safe_map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                    B = B, ptype = ptype, rboot = rboot, rng = rng)
+                    boot = boot, compute_betas = compute_betas, B = B, ptype = ptype, rboot = rboot, rng = rng)
 
         end
 
@@ -137,7 +138,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
         @showprogress map(eachcol(geno)) do snp
             
             safe_map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                    B = B, ptype = ptype, rboot = rboot, rng = rng)
+                    boot = boot, compute_betas = compute_betas, B = B, ptype = ptype, rboot = rboot, rng = rng)
         end
 
     end
@@ -174,7 +175,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
 
     # --------------------------- Create Dynema object --------------------------- #
     res = DynemaModel(f, termtest, nrow(design), length(unique(groups[:, 1])), summ_stats, 
-                        B, boot_dist, timewait, imposenull, pos, gene, chr)
+                        B, boot_dist, timewait, imposenull, boot, names(summ_stats)[2], pos, gene, chr)
 
 
     return(res)
@@ -184,7 +185,9 @@ end
 
 
 function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
-                    groups::Matrix, R::BitMatrix, r::Vector{Float64}, imposenull::Bool = true, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
+                    groups::Matrix, R::BitMatrix, r::Vector{Float64}, 
+                    imposenull::Bool = true, boot::Bool = true,
+                    compute_betas::Bool = true, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = StableRNG(66))
 
         
@@ -194,14 +197,18 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         # snp = geno[:, 1]
         design[!, :G] = Float64.(snp)
 
-        # ---------------------------------- Fit GLM --------------------------------- #
-        
-        m = glm(f, design, Poisson(), LogLink())
+
+
+        if !imposenull | !boot
+            # Fit full model
+            m = glm(f, design, Poisson(), LogLink())
+        end
+
 
         # ---------------------- Extract predictors and response --------------------- #
 
-        X = modelmatrix(m)
-        y = response(m)
+        X = modelmatrix(f, design)
+        y = response(f, design)
 
         if imposenull
             
@@ -220,114 +227,130 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
             A = (X' * (μ̂ .* X)) \ I
 
         else
-
+        
             betas = coef(m)
             μ̂ = fitted(m)
             A = vcov(m)
 
         end
-        
+            
 
         # ------------------------------- Build scores ------------------------------- #
 
         scores = (y .- μ̂) .* X
 
-
-         # -------------------------- Calculate CRVE p-value -------------------------- #
+        # -------------------------- Calculate CRVE p-value -------------------------- #
 
 
         p_analytical = if imposenull
 
-               scoretest(R, r; 
-                            resp = y, 
-                            scores = scores,
-                            beta = betas,
-                            A = A,
-                            clustid = groups, 
-                            ml = true,
-                            scorebs = true,
-                            small = false)
-        
-        else
+                            scoretest(R, r; 
+                                            resp = y, 
+                                            scores = scores,
+                                            beta = betas,
+                                            A = A,
+                                            clustid = groups, 
+                                            ml = true,
+                                            scorebs = true,
+                                            small = false)
 
-                waldtest(R, r; 
-                            resp = y, 
-                            scores = scores,
-                            beta = betas,
-                            A = A,
-                            clustid = groups, 
-                            ml = true,
-                            scorebs = true,
-                            small = false)
+                        else
+
+                            waldtest(R, r; 
+                                        resp = y, 
+                                        scores = scores,
+                                        beta = betas,
+                                        A = A,
+                                        clustid = groups, 
+                                        ml = true,
+                                        scorebs = true,
+                                        small = false)
         end
 
-        # --------------------- Run first round of bootstrapping --------------------- #
+            # --------------------- Run first round of bootstrapping --------------------- #
 
+        if boot
 
-        test = wildboottest(R, r; 
-                            resp = y, 
-                            scores = scores,
-                            beta = betas,
-                            A = A,
-                            clustid = groups, 
-                            ml = true,
-                            scorebs = true,
-                            imposenull = imposenull,
-                            small = false,
-                            rng = rng, ptype = ptype, reps = B[1] - 1)
+            test = wildboottest(R, r; 
+                                resp = y, 
+                                scores = scores,
+                                beta = betas,
+                                A = A,
+                                clustid = groups, 
+                                ml = true,
+                                scorebs = true,
+                                imposenull = imposenull,
+                                small = false,
+                                rng = rng, ptype = ptype, reps = B[1] - 1)
 
-        # Extract results
-        statistic = teststat(test)
-        boot = dist(test)[1, :]
-        stattype = test.stattype
-        counts = pass(statistic, boot, stattype)
+            # Extract results
+            statistic = teststat(test)
+            bootdist = dist(test)[1, :]
+            stattype = test.stattype
+            counts = pass(statistic, bootdist, stattype)
 
-        # ---------------- Remaining rounds of bootstrapping if needed --------------- #
+            # ---------------- Remaining rounds of bootstrapping if needed --------------- #
 
-        if counts <= 20
+            if counts <= 20
 
-            for j in 2:length(B)
+                for j in 2:length(B)
+                    
+                    test = wildboottest(R, r; 
+                                resp = y, 
+                                scores = scores,
+                                beta = betas,
+                                A = A,
+                                clustid = groups, 
+                                ml = true,
+                                scorebs = true,
+                                imposenull = imposenull,
+                                small = false,
+                                rng = rng, ptype = ptype, 
+                                reps = B[j])
+                    
+                    
+                    bootdist_i = dist(test)[1, :]
+                    bootdist = vcat(bootdist, bootdist_i)
+                    counts = pass(statistic, bootdist, stattype)
+                    
+                    if counts > 20
+                        break
+                    end
                 
-                test = wildboottest(R, r; 
-                            resp = y, 
-                            scores = scores,
-                            beta = betas,
-                            A = A,
-                            clustid = groups, 
-                            ml = true,
-                            scorebs = true,
-                            imposenull = imposenull,
-                            small = false,
-                            rng = rng, ptype = ptype, 
-                            reps = B[j])
-                
-                
-                boot_i = dist(test)[1, :]
-                boot = vcat(boot, boot_i)
-                counts = pass(statistic, boot, stattype)
-                
-                if counts > 20
-                    break
                 end
-            
+
             end
 
-        end
+            # Compute final p-value 
+            pval = compute_pvalue(statistic, bootdist, stattype)
+        
 
-        # Compute final p-value 
-        pval = compute_pvalue(statistic, boot, stattype)
-     
+
+            # ------------------------------ Gather results ------------------------------ #
+            
+            res = DataFrame(stattype => statistic)
+            res[!, :p] = [pval]
+            
+
+        else
+            
+            
+            res = DataFrame(p_analytical.stattype => p_analytical.stat)
+            
+        end
+        
+        res[!, :p_analytical] = [p_analytical.p]
 
         # ------------------- Extract betas from unrestricted model ------------------ #
 
-        betas = DataFrame(transpose(coef(m)), coefnames(m))
-
-        # ------------------------------ Gather results ------------------------------ #
-        
-        res = DataFrame(stattype => statistic)
-        res[!, :p] = [pval]
-        res[!, :p_analytical] = [p_analytical.p]
-        res = hcat(res, betas)
+        if !imposenull | !boot
+            betas = DataFrame(transpose(coef(m)), coefnames(m))
+            res = hcat(res, betas)
+        elseif imposenull & compute_betas
+            m = glm(f, design, Poisson(), LogLink())
+            betas = DataFrame(transpose(coef(m)), coefnames(m))
+            res = hcat(res, betas)
+        end
 
         # ---------------- Return bootstrap distributions if required ---------------- #
 
