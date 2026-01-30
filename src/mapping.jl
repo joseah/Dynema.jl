@@ -37,7 +37,6 @@ to perform in each step
 - ptype: Type of bootstrap p-value to return (:equaltail, :symmetric)
 - rboot: Whether to return the bootstrap distributions for each variant. Useful for direct assessment of bootstrap statistics and
 internal debugging
-- rng: Random number generator
 - pos: A numeric value specifying a genomic location for each genetic variant. Stored in final output for convenience
 - gene: Name of the gene being tested. Stored in final output for convenience
 - chr: Chromosome position of gene being tested. Stored in final output for convenience.
@@ -52,7 +51,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
                     H0::Float64 = Float64(0), imposenull::Bool = true, compute_betas::Bool=false,
                     boot::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
-                    ptype::Symbol = :equaltail, rboot = false, rng::AbstractRNG = StableRNG(66), 
+                    ptype::Symbol = :equaltail, rboot = false,
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
                     gene::Union{Nothing, String} = nothing,
                     chr::Union{Nothing, String, Int} = nothing)
@@ -127,18 +126,18 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
 
     results = if parallel
 
-        @showprogress pmap(eachcol(geno)) do snp
+        @showprogress pmap(1:ncol(geno)) do i
 
-            safe_map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                    boot = boot, compute_betas = compute_betas, B = B, ptype = ptype, rboot = rboot, rng = rng)
+            safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
+                    boot = boot, compute_betas = compute_betas, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
 
         end
 
     else
-        @showprogress map(eachcol(geno)) do snp
+        @showprogress map(1:ncol(geno)) do i
             
-            safe_map_snp(snp; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                    boot = boot, compute_betas = compute_betas, B = B, ptype = ptype, rboot = rboot, rng = rng)
+            safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
+                    boot = boot, compute_betas = compute_betas, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
         end
 
     end
