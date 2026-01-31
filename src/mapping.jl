@@ -31,7 +31,6 @@ specified (e.g. donor structure). For example ["donor1", "donor2", "donor1", "do
 - `H0`: Null hypothesis value. By default `0`
 - `imposenull`: Logical inditicating whether to impose a null in the bootstrap data generating process (DGP). If true, a score test 
 is applied, otherwise a wald test is used
-- `compute_betas`: Whether to compute betas from the full model when using a score test
 - `boot`: Apply score bootstrapping? If false, analytical p-values using a CRVE are returned
 - `B``: Number of bootstrap iterations to apply. By default 39999 iterations at apply to achieve a p-value of 5 x 10^-5 for a two-tail test. 
 For adaptive bootstrapping, the number of iterations might be specified as a vector indicating the number of iterations
@@ -46,7 +45,7 @@ internal debugging
 function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, 
                     meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, 
                     parallel = false,
-                    H0::Float64 = Float64(0), imposenull::Bool = true, compute_betas::Bool=true,
+                    H0::Float64 = Float64(0), imposenull::Bool = true,
                     boot::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = false,
@@ -77,8 +76,6 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
     design = deepcopy(meta)
 
     # -------------------- Set R and r for hypothesis testing -------------------- #
-
-   
 
     # Define R matrix
     terms = termnames(f)[2]
@@ -127,7 +124,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
         @showprogress pmap(1:ncol(geno)) do i
 
             safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                    boot = boot, compute_betas = compute_betas, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
+                    boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
 
         end
 
@@ -135,7 +132,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
         @showprogress map(1:ncol(geno)) do i
             
             safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                    boot = boot, compute_betas = compute_betas, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
+                    boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
         end
 
     end
@@ -184,28 +181,22 @@ end
 function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
                     groups::Matrix, R::BitMatrix, r::Vector{Float64}, 
                     imposenull::Bool = true, boot::Bool = true,
-                    compute_betas::Bool = true, B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
+                    B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = StableRNG(66))
 
-        
         # ------------- Add expression and genotype data to model matrix ------------- #
 
         design = deepcopy(d)
-        # snp = geno[:, 1]
         design[!, :G] = Float64.(snp)
 
-
-
-        if !imposenull | !boot
-            # Fit full model
-            m = glm(f, design, Poisson(), LogLink())
-        end
-
+        # ------------------------------ Fit null model ------------------------------ #
+        
+        m = glm(f, design, Poisson(), LogLink())
 
         # ---------------------- Extract predictors and response --------------------- #
 
-        X = modelmatrix(f, design)
-        y = response(f, design)
+        X = modelmatrix(m)
+        y = response(m)
 
         if imposenull
             
@@ -221,8 +212,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
             betas = insert_zeros(vec(v), betas0)
 
             μ̂ = fitted(m0)
-             A = (X' * (μ̂ .* X)) \ I
-            #A = X' * (Diagonal(μ̂) * X) \ I
+            A = X' * (Diagonal(μ̂) * X) \ I
 
         else
         
@@ -265,7 +255,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
                                         small = false)
         end
 
-            # --------------------- Run first round of bootstrapping --------------------- #
+        # --------------------- Run first round of bootstrapping --------------------- #
 
         if boot
 
@@ -332,7 +322,6 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 
         else
             
-            
             res = DataFrame(p_analytical.stattype => p_analytical.stat)
             
         end
@@ -341,14 +330,8 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 
         # ------------------- Extract betas from unrestricted model ------------------ #
 
-        if !imposenull | !boot
-            betas = DataFrame(transpose(coef(m)), coefnames(m))
-            res = hcat(res, betas)
-        elseif imposenull & compute_betas
-            m = glm(f, design, Poisson(), LogLink())
-            betas = DataFrame(transpose(coef(m)), coefnames(m))
-            res = hcat(res, betas)
-        end
+        betas = DataFrame(transpose(coef(m)), coefnames(m))
+        res = hcat(res, betas)
 
         # ---------------- Return bootstrap distributions if required ---------------- #
 
