@@ -56,7 +56,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
     # --------------------- Vectorize arguments if necessary --------------------- #
 
     # Vectorize genotype
-    geno = geno isa AbstractVector ? DataFrame(G = geno) : geno
+    geno = geno isa AbstractVector ? reshape(geno, :, 1) : geno
     
     # Vectorize term tested if only one is provided
     termtest = termtest isa Vector{String} ? termtest : [termtest]
