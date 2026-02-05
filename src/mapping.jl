@@ -145,16 +145,16 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
     snp_names = if any(failed_snps)
         
-        failed_snps_names = names(geno)[failed_snps]
+        failed_snps_names = names(geno, 2)[failed_snps]
         println(Crayon(foreground = :yellow), "The following SNPs failed:\n$(join(failed_snps_names, '\n'))")
         println(Crayon(foreground = :red), "Removing failed SNPs from output...")
         results = results[Not(failed_snps)]
         
-        names(geno)[Not(failed_snps)]
+        names(geno, 2)[Not(failed_snps)]
 
     else
 
-        names(geno)
+        names(geno, 2)
 
     end
 
