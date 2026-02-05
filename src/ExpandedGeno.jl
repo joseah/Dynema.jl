@@ -1,4 +1,3 @@
-
 struct ExpandedGeno{T<:AbstractMatrix, R<:AbstractVector{<:Integer},
                     RN<:Union{Nothing,AbstractVector}, CN<:Union{Nothing,AbstractVector}} <: AbstractMatrix{eltype(T)}
     mat::T
@@ -55,7 +54,7 @@ cnames = names(E, 2)
 """
 function expand_geno(mat, rows; rownames=nothing, colnames=nothing)
     rn = rownames isa String ? [rownames] : rownames === nothing ? nothing : rownames
-    cn = colnames isa String ? [colnames] : colnames === nothing ? nothing : colnames
+    cn = colnames isa String ? [colnames] : colnames === nothing ? ["SNP_$(i)" for i in 1:size(mat, 2)] : colnames
     return ExpandedGeno(mat, rows, rn, cn)
 end
 
