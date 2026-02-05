@@ -42,7 +42,7 @@ internal debugging
 - `gene`: Name of the gene being tested. Stored in final output for convenience
 - `chr`: Chromosome position of gene being tested. Stored in final output for convenience.
 """
-function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDataFrame, AbstractVector}, 
+function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMatrix, AbstractVector}, 
                     meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, 
                     parallel = false,
                     H0::Float64 = Float64(0), imposenull::Bool = true,
@@ -121,7 +121,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
 
     results = if parallel
 
-        @showprogress pmap(1:ncol(geno)) do i
+        @showprogress pmap(1:size(geno, 2)) do i
 
             safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
                     boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
@@ -129,7 +129,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractDa
         end
 
     else
-        @showprogress map(1:ncol(geno)) do i
+        @showprogress map(1:size(geno, 2)) do i
             
             safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
                     boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
