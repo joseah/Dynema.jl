@@ -1,5 +1,18 @@
+"""
+    ExpandedGeno
+
+Stores genotype data at the sample level. Allows storage of SNP names and single-cell ids.
+
+
+# Arguments
+- `mat::AbstractMatrix`: donor × SNP genotype matrix (e.g., `Matrix{Float64}` or `SparseMatrixCSC`).
+- `rows::AbstractVector`: mapping from single-cell to donor rows.
+- `rownames::Union{Nothing,String,AbstractVector}=nothing`: optional cell ids
+- `colnames::Union{Nothing,String,AbstractVector}=nothing`: optional SNP names.
+"""
 struct ExpandedGeno{T<:AbstractMatrix, R<:AbstractVector{<:Integer},
-                    RN<:Union{Nothing,AbstractVector}, CN<:Union{Nothing,AbstractVector}} <: AbstractMatrix{eltype(T)}
+                    RN<:Union{Nothing,AbstractVector}, 
+                    CN<:Union{Nothing,AbstractVector}} <: AbstractMatrix{eltype(T)}
     mat::T
     rows::R
     rownames::RN
@@ -58,44 +71,75 @@ function expand_geno(mat, rows; rownames=nothing, colnames=nothing)
     return ExpandedGeno(mat, rows, rn, cn)
 end
 
+# Shows dimensions of promised matrix
+# Rows: The number of cells (mapping indices from donor to cell)
+# Columns: Number of SNPs in actual donor-level genotype data
 Base.size(E::ExpandedGeno) = (length(E.rows), size(E.mat, 2))
+
+# Allow two indexes
 Base.IndexStyle(::Type{<:ExpandedGeno}) = IndexCartesian()
+
+# Specify data type
 Base.eltype(E::ExpandedGeno) = eltype(E.mat)
 
+
+# ---------------------------------------------------------------------------- #
+#                                   Accessors                                  #
+# ---------------------------------------------------------------------------- #
+
+# -------------------------------- Materialize ------------------------------- #
+
 # Single element
+## 1 cell | 1 SNP
 @inline Base.getindex(E::ExpandedGeno, i::Int, j::Int) = @inbounds E.mat[E.rows[i], j]
 
 # Single row, all columns
+## 1 cell | All SNPs
 Base.getindex(E::ExpandedGeno, i::Int, ::Colon) = @inbounds E.mat[E.rows[i], :]
 
 # All rows, single column
+##  All cells | 1 SNP
 Base.getindex(E::ExpandedGeno, ::Colon, j::Int) = @inbounds E.mat[E.rows, j]
 
 # Vector of rows, single column
+## Some cells | 1 SNP
 Base.getindex(E::ExpandedGeno, I::AbstractVector{<:Integer}, j::Int) =
     @inbounds E.mat[E.rows[I], j]
 
 # Single row, vector of columns
+## 1 cell | Some SNPs
 Base.getindex(E::ExpandedGeno, i::Int, J::AbstractVector{<:Integer}) =
     @inbounds E.mat[E.rows[i], J]
 
-# All rows, vector of columns → lazy view
+# Vector of rows, all columns
+## Some cells | All SNPs
+Base.getindex(E::ExpandedGeno,
+              I::AbstractVector{<:Integer},
+              ::Colon) =
+    @inbounds E.mat[E.rows[I], :]
+
+# ------------------------------- Lazy dispatch ------------------------------ #
+
+# All rows, vector of columns
+## All cells | some SNPs
 Base.getindex(E::ExpandedGeno, ::Colon, J::AbstractVector{<:Integer}) =
     ExpandedGenoView(E.mat, E.rows, J,
                      E.rownames,
                      E.colnames === nothing ? nothing : E.colnames[J])
 
-# Vector of rows, vector of columns → lazy view
+# Vector of rows, vector of columns 
+# Some cells, some SNPs
 Base.getindex(E::ExpandedGeno, I::AbstractVector{<:Integer}, J::AbstractVector{<:Integer}) =
     ExpandedGenoView(E.mat, E.rows[I], J,
                      E.rownames === nothing ? nothing : E.rownames[I],
                      E.colnames === nothing ? nothing : E.colnames[J])
 
-# forbid single-index linear access
+# Prevent single-index linear access
 function Base.getindex(E::ExpandedGeno, I::Union{Int, AbstractVector})
     throw(ArgumentError("Single-index access not allowed; use row,column indexing, e.g. E[1:10, :]"))
 end
 
+# Get dimension names
 Base.names(E::ExpandedGeno, dim::Int) =
     dim == 1 ? E.rownames : dim == 2 ? E.colnames :
     throw(ArgumentError("dimension must be 1 or 2"))
