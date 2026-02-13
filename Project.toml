@@ -30,7 +30,7 @@ StatsModels = "3eaba693-59b7-5ba5-a881-562e759f1c8d"
 WildBootTests = "65c2e505-86ba-4c19-93f1-95506c1443d5"
 
 [compat]
-BSplineKit = "0.17.7"
+BSplineKit = "0.17.7, 0.19"
 CategoricalArrays = "0.10.8"
 Distances = "0.10.12"
 Distributions = "0.25.118"
