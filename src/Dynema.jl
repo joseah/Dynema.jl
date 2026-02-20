@@ -11,8 +11,6 @@ using StatsModels
 using LinearAlgebra
 using StaticArrays
 using NamedArrays
-using NearestNeighborDescent
-using Distances
 using Distributions
 using PrettyTables
 using ProgressMeter
