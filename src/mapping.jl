@@ -57,7 +57,10 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
     # Vectorize genotype
     geno = geno isa AbstractVector ? reshape(geno, :, 1) : geno
-    
+
+    # Retrieve SNP names
+    snp_names = geno isa Matrix ? ["SNP_$(i)" for i in 1:size(geno, 2)] : names(geno, 2)
+
     # Vectorize term tested if only one is provided
     termtest = termtest isa Vector{String} ? termtest : [termtest]
 
@@ -143,18 +146,13 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
     failed_snps = isnothing.(results)
 
-    snp_names = if any(failed_snps)
+    if any(failed_snps)
         
-        failed_snps_names = names(geno, 2)[failed_snps]
+        failed_snps_names = snp_names[failed_snps]
         println(Crayon(foreground = :yellow), "The following SNPs failed:\n$(join(failed_snps_names, '\n'))")
         println(Crayon(foreground = :red), "Removing failed SNPs from output...")
         results = results[Not(failed_snps)]
-        
-        names(geno, 2)[Not(failed_snps)]
-
-    else
-
-        names(geno, 2)
+        snp_names = snp_names[Not(failed_snps)]
 
     end
 
