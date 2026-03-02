@@ -46,7 +46,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
                     meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, 
                     parallel = false,
                     H0::Float64 = Float64(0), imposenull::Bool = true,
-                    boot::Bool = true,
+                    boot::Bool = false,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = false,
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
