@@ -243,7 +243,6 @@ end
 function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     print(Crayon(foreground = :light_yellow, bold = true), "\nDynamic eQTL mapping (Dynema) model\n\n")
-    print(Crayon(foreground = :green), "Score bootstrap via WildBootTests.jl\n\n")
     print(Crayon(foreground = :blue), get_f(m), "\n\n")
 
     if !isnothing(get_gene(m))
@@ -257,12 +256,16 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     end
 
 
-    print(Crayon(reset = true, bold = true), "Term(s) tested   = ")
+    print(Crayon(reset = true, bold = true), "Term(s)   = ")
     println(Crayon(foreground = :red, bold = true), get_termtest(m))
 
     
+    if m.boot
+
     print(Crayon(reset = true, bold = true), "N. bootstraps = ")
     println(Crayon(foreground = :green, bold = true), "$(sum(get_B(m)))")
+
+    end
 
     
     print(Crayon(reset = true, bold = true), "N. SNPs       = ")
@@ -293,7 +296,10 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     println(Crayon(reset = true), "\nResults")
     pretty_table(glance, header = (names(glance)))
-    println("** smallest p-value computed= $(2/sum(get_B(m))); report as p < $(2/sum(get_B(m)))\n")
+
+    if m.boot
+        println("** smallest p-value computed = $(2/sum(get_B(m))); report as p < $(2/sum(get_B(m)))\n")
+    end
     
     print(Crayon(reset = true, bold = true), "Computation time = ")
     println(Crayon(foreground = :green, bold = true), "$(round(get_time(m) / 60, sigdigits = 4)) mins.")

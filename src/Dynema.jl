@@ -30,5 +30,6 @@ include("ExpandedGeno.jl")
 include("mapping.jl")
 include("pvalue.jl")
 include("utils.jl")
+include("bootstrap.jl")
 
 end
