@@ -25,24 +25,37 @@ function compute_pvalue(stat, boot, stattype)
 
 end
 
-function approximate_pvalue(x)
 
-    p = map(x) do d
-        p = cdf(Normal(Float64(d), std(x) / length(x)), 0)
 
-        if mean(x) < 0
-            p = 1 .- p
-        end
+function crvetest(R, r; resp::AbstractVector, scores::AbstractMatrix, betas::AbstractVector, 
+                    A::AbstractMatrix, clustid::AbstractMatrix, imposenull::Bool, small::Bool = false)
 
-        return p / length(x)
+    p_analytical = if imposenull
+
+        scoretest(R, r; 
+                    resp = resp, 
+                    scores = scores,
+                    beta = betas,
+                    A = A,
+                    clustid = clustid, 
+                    ml = true,
+                    scorebs = true,
+                    small = small)
+
+    else
+
+        waldtest(R, r; 
+                    resp = resp, 
+                    scores = scores,
+                    beta = betas,
+                    A = A,
+                    clustid = clustid, 
+                    ml = true,
+                    scorebs = true,
+                    small = small)
     end
 
-    p = 2 * sum(p)
-    
-    if p == 0
-        p = floatmin(Float64)
-    end
 
-    return(p)
+    return p_analytical
 
 end
