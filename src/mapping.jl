@@ -236,7 +236,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         # --------------------------------- Bootstrap -------------------------------- #
 
         if boot
-            pboot = scorebootstrap(R, r; resp = y, scores = scores, betas = betas, 
+            pboot, bootdist = scorebootstrap(R, r; resp = y, scores = scores, betas = betas, 
                         A = A, clustid = groups, imposenull = imposenull, 
                         rng = rng, ptype = ptype, B = B)
             res[!, :p_boot] = [pboot]
@@ -250,8 +250,8 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 
         # ---------------- Return bootstrap distributions if required ---------------- #
 
-        if rboot
-           res = (res, boot)
+        if rboot & boot
+           res = (res, boot, bootdist)
         end
 
         return res

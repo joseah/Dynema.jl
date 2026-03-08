@@ -61,7 +61,7 @@ function scorebootstrap(R, r; resp::AbstractVector, scores::AbstractMatrix, beta
             
 
 
-            return pval
+            return (pval, bootdist)
 
 
 end
