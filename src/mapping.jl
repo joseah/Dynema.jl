@@ -127,7 +127,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
         @showprogress pmap(1:size(geno, 2)) do i
 
             safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                    boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
+                    boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322))
 
         end
 
@@ -135,7 +135,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
         @showprogress map(1:size(geno, 2)) do i
             
             safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
-                    boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322 + i))
+                    boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322))
         end
 
     end
