@@ -26,209 +26,150 @@ end
 # ---------------------------------------------------------------------------- #
 
 """
-
 `get_f(::Dynema.DynemaModel)`
 
 Extract formula used for a DynemaModel
 """
-
 get_f(m::DynemaModel) = m.f
 
 """
-
 `get_termtest(::Dynema.DynemaModel)`
 
 Extract formula used for a DynemaModel
 """
-
 get_termtest(m::DynemaModel) = m.termtest
 
 """
-
 `get_ncell(::Dynema.DynemaModel)`
 
 Extract number of cells used for a DynemaModel
 """
-
 get_ncell(m::DynemaModel) = m.ncells
 
 """
-
 `get_ndonor(::DynemaModel)`
 
 Extract number of donors/individuals for a DynemaModel
 """
-
 get_ndonor(m::DynemaModel) = m.ndonors
 
 """
-
 `get_summary(::Dynema.DynemaModel)`
 
 Extract all summary statistics for a DynemaModel
 """
-
 get_summary(m::DynemaModel) = m.summary
 
-
 """
-
 `get_stat(::Dynema.DynemaModel)`
 
 Extract bootstrapepd statistic for a DynemaModel
 """
-
 get_stat(m::DynemaModel) = m.summary.stat
 
-
 """
-
 `get_p(::Dynema.DynemaModel)`
 
 Extract empirical p-values for a DynemaModel
 """
-
 get_p(m::DynemaModel) = m.summary.p
 
-
 """
-
 `get_snp(::Dynema.DynemaModel)`
 
 Extract SNP/genetic variant names provided as column names in genotypying data from a DynemaModel
 """
-
 get_snp(m::DynemaModel) = m.summary.snp
 
-
 """
-
 `get_B(::Dynema.DynemaModel)`
 
-Extract number of bootstrap iterations applied iteratively 
+Extract number of bootstrap iterations applied iteratively
 for a DynemaModel
 """
-
 get_B(m::DynemaModel) = m.B
 
-
 """
-
 `get_bootdists(::Dynema.DynemaModel)`
 
 Extract bootstrap stat distributions for each SNP for a DynemaModel
 """
-
 get_bootdists(m::DynemaModel) = m.bootdists
 
-
 """
-
 `get_time(::Dynema.DynemaModel)`
 
 Extract total elapsed time in seconds
 """
-
 get_time(m::DynemaModel) = m.time
-
 
 """
 `get_stattype(::Dynema.DynemaModel)`
 
 Extract statistic type (z or χ²)
 """
-
 get_stattype(m::DynemaModel) = m.stattype
-
-
 
 """
 `get_testtype(::Dynema.DynemaModel)`
 
 Whether a score or wald test were performed
 """
-
 get_testtype(m::DynemaModel) = m.imposenull ? "Score/lagrange multiplier" : "Wald"
 
 """
-
-
 `get_boot(::Dynema.DynemaModel)`
 
 Determine whether bootstrapping was perfomed
 """
-
 get_boot(m::DynemaModel) = m.boot
 
-
 """
-
-
 `get_pos(::Dynema.DynemaModel)`
 
 Extract genomic position for each SNP
 """
-
 get_pos(m::DynemaModel) = m.pos
 
-
 """
-
 `get_gene(::Dynema.DynemaModel)`
 
 Extract name for tested gene
 """
-
 get_gene(m::DynemaModel) = m.gene
 
-
-
 """
-
 `get_chr(::Dynema.DynemaModel)`
 
 Extract name for tested gene
 """
-
 get_chr(m::DynemaModel) = m.chr
 
-
 """
-
-`set_pos(::Dynema.DynemaModel)`
+`set_pos!(::Dynema.DynemaModel)`
 
 Sets positions for all SNPs/genetic variants for a DynemaModel
 """
-
-
 function set_pos!(m::DynemaModel, pos::Union{Nothing, Vector{Int64}, Vector{Float64}})
     m.pos = pos
     return m
 end
 
-
-
 """
-
-`set_gene(::Dynema.DynemaModel)`
+`set_gene!(::Dynema.DynemaModel)`
 
 Sets gene name for a DynemaModel
 """
-
-
 function set_gene!(m::DynemaModel, gene::Union{Nothing, String})
     m.gene = gene
     return m
 end
 
 """
-
-`set_chr(::Dynema.DynemaModel)`
+`set_chr!(::Dynema.DynemaModel)`
 
 Sets chromosome name for gene tested
 """
-
-
 function set_chr!(m::DynemaModel, chr::Union{Nothing, String, Int})
     m.chr = chr
     return m
@@ -259,7 +200,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     print(Crayon(reset = true, bold = true), "Term(s)   = ")
     println(Crayon(foreground = :red, bold = true), get_termtest(m))
 
-    
+
     if m.boot
 
     print(Crayon(reset = true, bold = true), "N. bootstraps = ")
@@ -267,14 +208,14 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     end
 
-    
+
     print(Crayon(reset = true, bold = true), "N. SNPs       = ")
     println(Crayon(foreground = :green, bold = true), "$(nrow(get_summary(m)))")
 
-    
+
     print(Crayon(reset = true, bold = true), "N. cells      = ")
     println(Crayon(foreground = :green, bold = true), "$(get_ncell(m))")
-    
+
     print(Crayon(reset = true, bold = true), "N. donors     = ")
     println(Crayon(foreground = :green, bold = true), "$(get_ndonor(m))")
 
@@ -284,7 +225,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     summ = get_summary(m)
 
     if nrow(summ) >= 10
-        
+
         glance = first(sort(summ, [order(:p), order(get_stattype(m), by = abs, rev = true)]), 10)
         push!(glance, fill("...", ncol(summ)), promote = true)
 
@@ -300,7 +241,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     if m.boot
         println("** smallest p-value computed = $(2/sum(get_B(m))); report as p < $(2/sum(get_B(m)))\n")
     end
-    
+
     print(Crayon(reset = true, bold = true), "Computation time = ")
     println(Crayon(foreground = :green, bold = true), "$(round(get_time(m) / 60, sigdigits = 4)) mins.")
 
