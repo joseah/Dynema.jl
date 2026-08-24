@@ -4,7 +4,7 @@
 [![Documentation](https://github.com/joseah/Dynema.jl/actions/workflows/documentation.yml/badge.svg?branch=main)](https://joseah.github.io/Dynema.jl/dev/)
 [![Docs: stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://joseah.github.io/Dynema.jl/stable/)
 
-*Dynema* is  method to map single-cell eQTL effects at real cellular resolution.
+*Dynema* is a method to map single-cell eQTL effects at real cellular resolution.
 
 *Dynema*'s generalized framework enables testing complex regulatory effects including:
 
@@ -13,8 +13,10 @@
 - **Total effects**: Joint effect of main and interaction eQTL components. This effect captures any genetic signal driven by either main or interaction eQTL effects
 
 
-*Dynema* scales to genome-wide analysis, accounts for repeated measurements (multiple cells per donor), and provides calibrated p-values by using cluster-robust variance estimators (CRVEs). Additionally, it also provides robust inferences in extreme scenarios including (1) small number of donors or (2) imbalanced number cells per donor, by leveraging the score bootstrapping, implemented in [WildBootTests.Jl](https://github.com/droodman/WildBootTests.jl).
+*Dynema* scales to genome-wide analysis, accounts for repeated measurements (multiple cells per donor), and provides calibrated p-values by using cluster-robust variance estimators (CRVEs). Additionally, it also provides robust inferences in extreme scenarios including (1) small number of donors or (2) imbalanced number cells per donor, by leveraging the score bootstrapping, implemented in [WildBootTests.jl](https://github.com/droodman/WildBootTests.jl).
 
+
+# Installation
 
 *Dynema* can be installed in Julia as follows:
 
@@ -22,7 +24,6 @@
 using Pkg
 Pkg.add(url = "https://github.com/joseah/Dynema.jl")
 ```
-
 
 For more details and tutorials, see the documentation website.
 
