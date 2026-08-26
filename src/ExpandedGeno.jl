@@ -248,9 +248,7 @@ rnames = names(ex_geno, 1)
 cnames = names(ex_geno, 2)
 ```
 """
-
-
-function expand_genotypes(geno::AbstractMatrix, geno_donor_ids::AbstractVector, 
+function expand_genotypes(geno::AbstractMatrix, geno_donor_ids::AbstractVector,
                     sc_donor_ids::AbstractVector, variant_names::Union{Nothing,String,AbstractVector}=nothing,
                     cell_names::Union{Nothing,String,AbstractVector}=nothing)
 
