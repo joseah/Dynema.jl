@@ -199,3 +199,69 @@ Base.eltype(E::ExpandedGenoView) = eltype(E.mat)
 Base.names(E::ExpandedGenoView, dim::Int) =
     dim == 1 ? E.rownames : dim == 2 ? E.colnames :
     throw(ArgumentError("dimension must be 1 or 2"))
+
+
+
+"""
+    expand_geno(geno::AbstractMatrix, geno_donor_ids::AbstractVector;
+                 sc_donor_ids=nothing, variant_names=nothing,
+                 cell_names=nothing)
+
+Memory-efficient wrapper for genotype matrices that allows lazy row and column subsetting.
+Instead of building a full matrix at the single-cell level, it provides a lazy genotype 
+matrix representation compatible with downstream operations. Genotype data at the single-cell
+level is only materialized when subsetting a single column or row.
+
+# Arguments
+- `geno::AbstractMatrix`: donor × variant matrix containing allele dosages (e.g., `Matrix{Float64}` or `SparseMatrixCSC`).
+- `geno_donor_ids::AbstractVector`: A vector of donor ids, in the same order as the rows in the genotype matrix.
+- `sc_donor_ids::AbstractVector`: A vector of donor ids for each cell/barcode. This vector should be in the same order as the metadata and gene expression at the single-cell level.
+- `variant_names::Union{Nothing,String,AbstractVector}=nothing`: A vector of optional variant names. Strongly encouraged.
+- `cell_names::Union{Nothing,String,AbstractVector}=nothing`: (Optional) A vector of barcode/cell names.
+
+# Indexing
+- **2D indexing only**: `E[i, j]`, `E[i, :]`, `E[:, j]`, `E[I, J]`.
+- **Single-index access is forbidden**: `E[i]` throws an error.
+- Materializes **single rows** or **single columns** only.
+- Submatrices return `ExpandedGenoView` (lazy, no copying).
+
+# Examples
+```julia
+# Construct an ExpandedGeno
+ex_geno = expand_genotypes(Matrix(geno), donor_ids, sc_meta.donor_id, variant_names)
+
+
+# Access a single element
+val = ex_geno[10, 5]        # Float64
+
+# Access a single row
+row = ex_geno[10, :]         # Vector{Float64}
+
+# Access a single column
+col = ex_geno[:, 5]          # Vector{Float64}
+
+# Lazy submatrix (returns ExpandedGenoView)
+view = ex_geno[1:100, 5:10]
+
+# Access row and column names
+rnames = names(ex_geno, 1)
+cnames = names(ex_geno, 2)
+```
+"""
+
+
+function expand_genotypes(geno::AbstractMatrix, geno_donor_ids::AbstractVector, 
+                    sc_donor_ids::AbstractVector, variant_names::Union{Nothing,String,AbstractVector}=nothing,
+                    cell_names::Union{Nothing,String,AbstractVector}=nothing)
+
+    # Create a lookup dictionary for genotype data: donor -> index
+    donor_lookup = Dict(label => i for (i, label) in enumerate(geno_donor_ids))
+
+    # Map cells to donors (indices)
+    indices = [donor_lookup[c] for c in sc_donor_ids]
+
+    # Expand genotypes
+    expand_geno(geno, indices; rownames = cell_names, colnames = variant_names)
+
+
+end
