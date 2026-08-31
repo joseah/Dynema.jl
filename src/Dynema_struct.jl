@@ -209,7 +209,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     end
 
 
-    print(io, Crayon(reset = true, bold = true), "N. variants       = ")
+    print(io, Crayon(reset = true, bold = true), "N. variants   = ")
     println(io, Crayon(foreground = :green, bold = true), "$(nrow(get_summary(m)))")
 
 
