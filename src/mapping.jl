@@ -152,13 +152,13 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
         println(Crayon(foreground = :yellow), "The following variants failed:\n$(join(failed_variants_names, '\n'))")
         println(Crayon(foreground = :red), "Removing failed variants from output...")
         results = results[Not(failed_variants)]
-        variants_names = variant_names[Not(failed_variants)]
+        variant_names = variant_names[Not(failed_variants)]
 
     end
 
 
     summ_stats = rboot ? reduce(vcat, [first(x) for x in results]) : vcat(results...)
-    insertcols!(summ_stats, 1, :variant => variants_names)
+    insertcols!(summ_stats, 1, :variant => variant_names)
     
     # ---------------- Collect bootstrap distribution if necessary --------------- #
 
