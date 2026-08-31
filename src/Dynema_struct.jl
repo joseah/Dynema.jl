@@ -75,11 +75,11 @@ Extract empirical p-values for a DynemaModel
 get_p(m::DynemaModel) = m.summary.p
 
 """
-`get_snp(::Dynema.DynemaModel)`
+`get_variant(::Dynema.DynemaModel)`
 
-Extract SNP/genetic variant names provided as column names in genotypying data from a DynemaModel
+Extract variant names provided as column names in genotypying data from a DynemaModel
 """
-get_snp(m::DynemaModel) = m.summary.snp
+get_variant(m::DynemaModel) = m.summary.variant
 
 """
 `get_B(::Dynema.DynemaModel)`
@@ -92,7 +92,7 @@ get_B(m::DynemaModel) = m.B
 """
 `get_bootdists(::Dynema.DynemaModel)`
 
-Extract bootstrap stat distributions for each SNP for a DynemaModel
+Extract bootstrap stat distributions for each variant
 """
 get_bootdists(m::DynemaModel) = m.bootdists
 
@@ -127,7 +127,7 @@ get_boot(m::DynemaModel) = m.boot
 """
 `get_pos(::Dynema.DynemaModel)`
 
-Extract genomic position for each SNP
+Extract genomic position for each variant
 """
 get_pos(m::DynemaModel) = m.pos
 
@@ -148,7 +148,7 @@ get_chr(m::DynemaModel) = m.chr
 """
 `set_pos!(::Dynema.DynemaModel)`
 
-Sets positions for all SNPs/genetic variants for a DynemaModel
+Sets positions for all variants for a DynemaModel
 """
 function set_pos!(m::DynemaModel, pos::Union{Nothing, Vector{Int64}, Vector{Float64}})
     m.pos = pos
@@ -183,44 +183,44 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
-    print(Crayon(foreground = :light_yellow, bold = true), "\nDynamic eQTL mapping (Dynema) model\n\n")
-    print(Crayon(foreground = :blue), get_f(m), "\n\n")
+    print(io, Crayon(foreground = :light_yellow, bold = true), "\nDynamic eQTL mapping (Dynema) model\n\n")
+    print(io, Crayon(foreground = :blue), get_f(m), "\n\n")
 
     if !isnothing(get_gene(m))
-            print(Crayon(reset = true, bold = true), "Gene name    = ")
-            println(Crayon(foreground = :green, bold = true), get_gene(m))
+            print(io, Crayon(reset = true, bold = true), "Gene name    = ")
+            println(io, Crayon(foreground = :green, bold = true), get_gene(m))
     end
 
     if !isnothing(get_chr(m))
-            print(Crayon(reset = true, bold = true), "Gene chr.    = ")
-            println(Crayon(foreground = :green, bold = true), get_chr(m))
+            print(io, Crayon(reset = true, bold = true), "Gene chr.    = ")
+            println(io, Crayon(foreground = :green, bold = true), get_chr(m))
     end
 
 
-    print(Crayon(reset = true, bold = true), "Term(s)   = ")
-    println(Crayon(foreground = :red, bold = true), get_termtest(m))
+    print(io, Crayon(reset = true, bold = true), "Term(s)   = ")
+    println(io, Crayon(foreground = :red, bold = true), get_termtest(m))
 
 
     if m.boot
 
-    print(Crayon(reset = true, bold = true), "N. bootstraps = ")
-    println(Crayon(foreground = :green, bold = true), "$(sum(get_B(m)))")
+    print(io, Crayon(reset = true, bold = true), "N. bootstraps = ")
+    println(io, Crayon(foreground = :green, bold = true), "$(sum(get_B(m)))")
 
     end
 
 
-    print(Crayon(reset = true, bold = true), "N. SNPs       = ")
-    println(Crayon(foreground = :green, bold = true), "$(nrow(get_summary(m)))")
+    print(io, Crayon(reset = true, bold = true), "N. variants       = ")
+    println(io, Crayon(foreground = :green, bold = true), "$(nrow(get_summary(m)))")
 
 
-    print(Crayon(reset = true, bold = true), "N. cells      = ")
-    println(Crayon(foreground = :green, bold = true), "$(get_ncell(m))")
+    print(io, Crayon(reset = true, bold = true), "N. cells      = ")
+    println(io, Crayon(foreground = :green, bold = true), "$(get_ncell(m))")
 
-    print(Crayon(reset = true, bold = true), "N. donors     = ")
-    println(Crayon(foreground = :green, bold = true), "$(get_ndonor(m))")
+    print(io, Crayon(reset = true, bold = true), "N. donors     = ")
+    println(io, Crayon(foreground = :green, bold = true), "$(get_ndonor(m))")
 
-    print(Crayon(reset = true, bold = true), "Test type     = ")
-    println(Crayon(foreground = :green, bold = true), "$(get_testtype(m))")
+    print(io, Crayon(reset = true, bold = true), "Test type     = ")
+    println(io, Crayon(foreground = :green, bold = true), "$(get_testtype(m))")
 
     summ = get_summary(m)
 
@@ -235,14 +235,14 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     end
 
-    println(Crayon(reset = true), "\nResults")
-    pretty_table(glance, header = (names(glance)))
+    println(io, Crayon(reset = true), "\nResults")
+    pretty_table(io, glance, header = (names(glance)))
 
     if m.boot
-        println("** smallest p-value computed = $(2/sum(get_B(m))); report as p < $(2/sum(get_B(m)))\n")
+        println(io, "** smallest p-value computed = $(2/sum(get_B(m))); report as p < $(2/sum(get_B(m)))\n")
     end
 
-    print(Crayon(reset = true, bold = true), "Computation time = ")
-    println(Crayon(foreground = :green, bold = true), "$(round(get_time(m) / 60, sigdigits = 4)) mins.")
+    print(io, Crayon(reset = true, bold = true), "Computation time = ")
+    println(io, Crayon(foreground = :green, bold = true), "$(round(get_time(m) / 60, sigdigits = 4)) mins.")
 
 end

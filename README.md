@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/src/assets/logo.svg" alt="Dynema.jl logo" width="220">
+</p>
+
 # Dynema (Dynamic eQTL mapping for single cells)
 
 [![Build Status](https://github.com/joseah/Dynema.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/joseah/Dynema.jl/actions/workflows/CI.yml?query=branch%3Amain)
@@ -25,5 +29,5 @@ using Pkg
 Pkg.add(url = "https://github.com/joseah/Dynema.jl")
 ```
 
-For more details and tutorials, see the documentation website.
+For more details and tutorials, see the [documentation website](https://joseah.github.io/Dynema.jl/dev/).
 

@@ -58,8 +58,8 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
     # Vectorize genotype
     geno = geno isa AbstractVector ? reshape(geno, :, 1) : geno
 
-    # Retrieve SNP names
-    snp_names = geno isa Matrix ? ["SNP_$(i)" for i in 1:size(geno, 2)] : names(geno, 2)
+    # Retrieve variant names
+    variant_names = geno isa Matrix ? ["variant_$(i)" for i in 1:size(geno, 2)] : names(geno, 2)
 
     # Vectorize term tested if only one is provided
     termtest = termtest isa Vector{String} ? termtest : [termtest]
@@ -118,7 +118,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
     design[!, :E] = pheno
 
-    # ------------ Run association for each SNP in input genotype data ----------- #
+    # ---------- Run association for each variant in input genotype data --------- #
 
     t0 = time()
 
@@ -126,7 +126,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
         @showprogress pmap(1:size(geno, 2)) do i
 
-            safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
+            safe_map_variant(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
                     boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322))
 
         end
@@ -134,7 +134,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
     else
         @showprogress map(1:size(geno, 2)) do i
             
-            safe_map_snp(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
+            safe_map_variant(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r, imposenull = imposenull, 
                     boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322))
         end
 
@@ -144,21 +144,21 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
     # ------------------------ Collect summary statistics ------------------------ #
 
-    failed_snps = isnothing.(results)
+    failed_variants = isnothing.(results)
 
-    if any(failed_snps)
+    if any(failed_variants)
         
-        failed_snps_names = snp_names[failed_snps]
-        println(Crayon(foreground = :yellow), "The following SNPs failed:\n$(join(failed_snps_names, '\n'))")
-        println(Crayon(foreground = :red), "Removing failed SNPs from output...")
-        results = results[Not(failed_snps)]
-        snp_names = snp_names[Not(failed_snps)]
+        failed_variants_names = variant_names[failed_variants]
+        println(Crayon(foreground = :yellow), "The following variants failed:\n$(join(failed_variants_names, '\n'))")
+        println(Crayon(foreground = :red), "Removing failed variants from output...")
+        results = results[Not(failed_variants)]
+        variants_names = variant_names[Not(failed_variants)]
 
     end
 
 
     summ_stats = rboot ? reduce(vcat, [first(x) for x in results]) : vcat(results...)
-    insertcols!(summ_stats, 1, :snp => snp_names)
+    insertcols!(summ_stats, 1, :variant => variants_names)
     
     # ---------------- Collect bootstrap distribution if necessary --------------- #
 
@@ -176,7 +176,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 end
 
 
-function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
+function map_variant(variant::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
                     groups::Matrix, R::BitMatrix, r::Vector{Float64}, 
                     imposenull::Bool = true, boot::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
@@ -185,7 +185,7 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
         # ------------- Add expression and genotype data to model matrix ------------- #
 
         design = deepcopy(d)
-        design[!, :G] = Float64.(snp)
+        design[!, :G] = Float64.(variant)
 
         # ------------------------------ Fit null model ------------------------------ #
         
@@ -259,12 +259,12 @@ function map_snp(snp::AbstractVector; f::FormulaTerm, d::AbstractDataFrame,
 end
 
 
-function safe_map_snp(snp; kwargs...)
+function safe_map_variant(variant; kwargs...)
     try
-        map_snp(snp; kwargs...)
+        map_variant(variant; kwargs...)
     catch err
         bt = catch_backtrace()
-        @warn "map_snp failed for a SNP" exception = (err, bt)
+        @warn "map_variant failed for a variant" exception = (err, bt)
         nothing
     end
 end

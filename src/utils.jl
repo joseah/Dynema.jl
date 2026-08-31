@@ -15,14 +15,14 @@ function verify_nobs_map_locus(geno::AbstractMatrix, pheno::AbstractVector,
 
 
 
-   n_obs = Dict(:snp => geno_size, :expr => pheno_size, 
+   n_obs = Dict(:variant => geno_size, :expr => pheno_size, 
                  :meta => meta_size, :groups => groups_size)
 
    n_obs_vals  = collect(values(n_obs))
 
    if(!all(x -> x == first(n_obs_vals), n_obs_vals))
        
-       println("Verify number of observatios of input files")
+       println("Verify number of observations of input files")
        println("Number of observations per input data\n")
        for (key, value) in pairs(n_obs)
            println(key, " = ", value)
