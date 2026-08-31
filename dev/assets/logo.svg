@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="4in" height="4.7in" viewBox="0 0 200 235" role="img" aria-label="Dynema logo: diverging expression trajectories across cell state, colored by genotype dosage, with the wordmark Dynema below">
+  <line x1="20" y1="165" x2="180" y2="165" stroke="#B4B2A9" stroke-width="3" stroke-linecap="round"/>
+  <path d="M30.0,140.0 L35.8,139.7 L41.7,139.3 L47.5,139.0 L53.3,138.7 L59.2,138.3 L65.0,138.0 L70.8,137.7 L76.7,137.3 L82.5,137.0 L88.3,136.7 L94.2,136.3 L100.0,136.0 L105.8,135.7 L111.7,135.3 L117.5,135.0 L123.3,134.7 L129.2,134.3 L135.0,134.0 L140.8,133.7 L146.7,133.3 L152.5,133.0 L158.3,132.7 L164.2,132.3 L170.0,132.0" fill="none" stroke="#042C53" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,132.0 L35.8,130.8 L41.7,129.6 L47.5,128.3 L53.3,126.9 L59.2,125.6 L65.0,124.1 L70.8,122.6 L76.7,121.1 L82.5,119.5 L88.3,117.9 L94.2,116.2 L100.0,114.5 L105.8,112.7 L111.7,110.9 L117.5,109.0 L123.3,107.1 L129.2,105.1 L135.0,103.1 L140.8,101.1 L146.7,98.9 L152.5,96.8 L158.3,94.6 L164.2,92.3 L170.0,90.0" fill="none" stroke="#185FA5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,124.0 L35.8,121.0 L41.7,118.0 L47.5,114.9 L53.3,111.8 L59.2,108.7 L65.0,105.6 L70.8,102.4 L76.7,99.2 L82.5,96.0 L88.3,92.8 L94.2,89.5 L100.0,86.2 L105.8,82.9 L111.7,79.6 L117.5,76.3 L123.3,72.9 L129.2,69.5 L135.0,66.1 L140.8,62.6 L146.7,59.1 L152.5,55.6 L158.3,52.1 L164.2,48.6 L170.0,45.0" fill="none" stroke="#85B7EB" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="65" cy="138" r="5" fill="#042C53" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="100" cy="136" r="5" fill="#042C53" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="135" cy="134" r="5" fill="#042C53" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="65" cy="124" r="5" fill="#185FA5" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="100" cy="115" r="5" fill="#185FA5" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="135" cy="103" r="5" fill="#185FA5" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="65" cy="106" r="5" fill="#85B7EB" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="100" cy="86" r="5" fill="#85B7EB" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle cx="135" cy="66" r="5" fill="#85B7EB" stroke="#FFFFFF" stroke-width="1.5"/>
+  <text x="100" y="210" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="36" font-weight="600" fill="#042C53">Dynema</text>
+</svg>
