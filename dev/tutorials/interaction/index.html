@@ -42,13 +42,13 @@ Results
 │       ... │     ... │         ... │         ... │      ... │      ... │      ⋯
 └───────────┴─────────┴─────────────┴─────────────┴──────────┴──────────┴───────
                                                                3 columns omitted
-Computation time = 1.22 mins.
+Computation time = 0.815 mins.
 </code></pre><p>Let&#39;s extract the summary statistics and write into a text file (optional)</p><pre><code class="language-julia hljs">summ_gxc1 = get_summary(res_gxc1)
 CSV.write(&quot;summ_gxc1.tsv&quot;, summ_gxc1, delim = &quot;\t&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">&quot;summ_gxc1.tsv&quot;</code></pre><p>Assuming input variants are ordered by genomic location, let&#39;s make a quick locus plot:</p><pre><code class="language-julia hljs">using Plots
 
 p_gxc1 = scatter(1:nrow(summ_gxc1), -log10.(summ_gxc1.p),
         xlabel = &quot;Genomic location&quot;, ylabel = &quot; -log(p)&quot;,
-        title = &quot;G x C1 interaction&quot;, legend = false)</code></pre><img src="6092be4a.svg" alt="Example block output"/><hr/><p>Let&#39;s consider now mapping single-context interaction with Treg/activation status</p><pre><code class="language-julia hljs">f_GXC2 = @formula(0 ~ 1 + G + C1 + C2 + C3 + G &amp; C2)
+        title = &quot;G x C1 interaction&quot;, legend = false)</code></pre><img src="5a1f50c7.svg" alt="Example block output"/><hr/><p>Let&#39;s consider now mapping single-context interaction with Treg/activation status</p><pre><code class="language-julia hljs">f_GXC2 = @formula(0 ~ 1 + G + C1 + C2 + C3 + G &amp; C2)
 
 res_gxc2 = map_locus(f_GXC2;
         pheno = expr,
@@ -84,12 +84,12 @@ Results
 │       ... │      ... │         ... │         ... │       ... │      ... │    ⋯
 └───────────┴──────────┴─────────────┴─────────────┴───────────┴──────────┴─────
                                                                3 columns omitted
-Computation time = 0.005579 mins.
+Computation time = 0.006226 mins.
 </code></pre><p>Let&#39;s make a second locus plot for G x C1:</p><pre><code class="language-julia hljs">summ_gxc2 = get_summary(res_gxc2)
 
 p_gxc2 = scatter(1:nrow(summ_gxc2), -log10.(summ_gxc2.p),
         xlabel = &quot;Genomic location&quot;, ylabel = &quot; -log(p)&quot;,
-        title = &quot;G x C2 interaction&quot;, legend = false, color = &quot;orange&quot;)</code></pre><img src="bb1886b5.svg" alt="Example block output"/><p>Let&#39;s compare results</p><pre><code class="language-julia hljs">plot(p_gxc1, p_gxc2)</code></pre><img src="b91f7a6c.svg" alt="Example block output"/><p><strong>Multi-context interaction</strong></p><p>We can also test multiple contexts at once as follows:</p><pre><code class="language-julia hljs">f_int = @formula(0 ~ 1 + G + C1 + C2 + C3 + G &amp; C1 + G &amp; C2 + G &amp; C3)
+        title = &quot;G x C2 interaction&quot;, legend = false, color = &quot;orange&quot;)</code></pre><img src="c4855f31.svg" alt="Example block output"/><p>Let&#39;s compare results</p><pre><code class="language-julia hljs">plot(p_gxc1, p_gxc2)</code></pre><img src="0bf0da31.svg" alt="Example block output"/><p><strong>Multi-context interaction</strong></p><p>We can also test multiple contexts at once as follows:</p><pre><code class="language-julia hljs">f_int = @formula(0 ~ 1 + G + C1 + C2 + C3 + G &amp; C1 + G &amp; C2 + G &amp; C3)
 
 res_int = map_locus(f_int;
         pheno = expr,
@@ -125,9 +125,9 @@ Results
 │       ... │     ... │        ... │         ... │       ... │      ... │      ⋯
 └───────────┴─────────┴────────────┴─────────────┴───────────┴──────────┴───────
                                                                5 columns omitted
-Computation time = 0.01949 mins.
+Computation time = 0.02091 mins.
 </code></pre><pre><code class="language-julia hljs">summ_int = get_summary(res_int)
 
 p_int = scatter(1:nrow(summ_int), -log10.(summ_int.p),
         xlabel = &quot;Genomic location&quot;, ylabel = &quot; -log(p)&quot;,
-        title = &quot;Multi-context interaction&quot;, legend = false, color = &quot;green&quot;)</code></pre><img src="2616413a.svg" alt="Example block output"/><p>The multi-context interaction captures both G x C1 and G x C2 signals.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../main_effect/">« Mapping main eQTL effects (context-independent)</a><a class="docs-footer-nextpage" href="../../functions/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Monday 31 August 2026 02:22">Monday 31 August 2026</span>. Using Julia version 1.11.9.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+        title = &quot;Multi-context interaction&quot;, legend = false, color = &quot;green&quot;)</code></pre><img src="c93051de.svg" alt="Example block output"/><p>The multi-context interaction captures both G x C1 and G x C2 signals.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../main_effect/">« Mapping main eQTL effects (context-independent)</a><a class="docs-footer-nextpage" href="../../functions/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Monday 31 August 2026 02:37">Monday 31 August 2026</span>. Using Julia version 1.11.9.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
