@@ -17,7 +17,7 @@
 - **Total effects**: Joint effect of main and interaction eQTL components. This effect captures any genetic signal driven by either main or interaction eQTL effects
 
 
-*Dynema* scales to genome-wide analysis, accounts for repeated measurements (multiple cells per donor), and provides calibrated p-values by using cluster-robust variance estimators (CRVEs). Additionally, it also provides robust inferences in extreme scenarios including (1) small number of donors or (2) imbalanced number cells per donor, by leveraging the score bootstrapping, implemented in [WildBootTests.jl](https://github.com/droodman/WildBootTests.jl).
+*Dynema* scales to genome-wide analysis, accounts for repeated measurements (multiple cells per donor), and provides calibrated p-values by using cluster-robust variance estimators (CRVEs). Additionally, it provides robust inferences in extreme scenarios including (1) small number of donors or (2) extreme imbalanced number cells per donor, by leveraging the score bootstrapping, implemented in [WildBootTests.jl](https://github.com/droodman/WildBootTests.jl).
 
 
 # Installation

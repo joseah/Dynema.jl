@@ -4,28 +4,13 @@ CurrentModule = Dynema
 
 # Dynema.jl
 
-*Dynamic single-cell eQTL mapping.*
+See our pre-print using this [link](https://www.biorxiv.org/content/10.64898/2026.08.25.747138v1)
 
-Dynema tests for genetic associations with single-cell gene expression,
-including associations that change across a continuous or categorical cell
-state (a *dynamic* or genotype × cell-state eQTL). It models single-cell
-expression counts as a function of SNP genotype dosage, cell state(s), and
-genotype × cell-state interaction(s) with a Poisson generalized linear
-model (GLM), while controlling for sample- and single-cell-level covariates.
-
-Cluster-robust variance estimators (CRVE) account for the non-independence
-of cells drawn from the same donor. Because parametric p-values from a GLM
-can be poorly calibrated in this setting, Dynema avoids relying on
-distributional assumptions by instead computing p-values with a
-**score bootstrap**: single-cell-level contributions to the score function
-are bootstrapped with wild weights applied at the donor level, and p-values
-are derived from the empirical distribution of the resulting bootstrapped,
-standardized coefficients.
+*Dynema* (Dynamic eQTL mapping in single cells) is a fast and calibrated method to map eQTL effects genome-wide at true single-cell resolution. We argue that an eQTL effect is different for each individual cell. Dynema can decompose such effects into: i) context-independent (main), ii) context-dependent (interaction), and iii) total (main and interaction).
 
 ## Installation
 
-Dynema.jl is not yet registered in the General registry. Install it
-directly from GitHub:
+You can install it directly from GitHub:
 
 ```julia
 using Pkg
