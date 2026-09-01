@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Convenience launcher for dynema_extract_geno.jl: activates the bundled CLI
+# environment (bin/Project.toml, shared with dynema-map) automatically.
+#
+# Usage: ./bin/dynema-extract-geno [options]      (run --help for the full list)
+#
+# tabix is provided by the htslib_jll Julia package dependency -- no system
+# htslib/samtools install required.
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec julia --project="$DIR" "$DIR/dynema_extract_geno.jl" "$@"
