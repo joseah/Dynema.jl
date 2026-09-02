@@ -22,3 +22,9 @@ settings.json
 
 # Per-run transcripts written by dynema-map/dynema-extract-geno's --log
 *.log
+
+# CLI tutorial demo datasets -- local scratch/staging only. The private,
+# TBRU-derived one is never committed; the public, simulated-data one is
+# uploaded to https://github.com/joseah/Dynema_datasets and downloaded on
+# the fly by the CLI tutorial, so it doesn't live in this repo either.
+/demo_data/
