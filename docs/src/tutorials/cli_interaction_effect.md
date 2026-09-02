@@ -22,26 +22,28 @@ curl -L https://github.com/joseah/Dynema_datasets/archive/refs/heads/main.tar.gz
 ## Run it
 
 `--interaction-with` is used to provide names of the context(s) we want to test interaction(s) for. 
-Here, we provide three cell contexts (`C1`, `C2`, `C3`) to test multi-context interaction effect. 
+Here, we provide three cell contexts (`C1`, `C2`, `C3`) to test multi-context interaction effect.
+
+`--effect interaction` specifies that this is an interaction test.
 
 ```bash
 input=demo_data
 
 
 ./bin/dynema-map \
-  --expr-prefix expr \
+  --expr-prefix "$input/expr" \
   --gene CTSS \
-  --meta meta.tsv \
+  --meta "$input/meta.tsv" \
   --vcf "$input/genotypes.vcf.gz" \
   --tss-file "$input/tss.tsv" \
   --window 500000 \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
   --contexts C1,C2,C3 \
-  --interaction-with C1,C2,C3 \
+  --interaction-with C1,C2,C3 \ 
   --donor-col donor_id \
   --cell-id-col cell_id \
   --effect interaction \
-  --out CTSS_interaction.tsv
+  --out CTSS_multi-interaction.tsv
 
 ```
 
