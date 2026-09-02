@@ -31,6 +31,7 @@ makedocs(
             "Julia API: Main effect (context-independent)" => "tutorials/main_effect.md",
             "Julia API: Interaction effect (context-dependent)" => "tutorials/interaction.md",
             "Julia API: Total effect (main + interaction)" => "tutorials/total_effect.md",
+            "Extra: Reusing an extracted genotype matrix: `dynema-extract-geno`" => "tutorials/extract_geno.md",
         ],
         "API Reference" => "functions.md",
         "Internals" => "internals.md",

@@ -310,6 +310,15 @@ function run_map(args; term_size = displaysize(stdout))
     (args["expr"] === nothing) == (args["expr-prefix"] === nothing) &&
         error("Provide exactly one of --expr (TSV/CSV) or --expr-prefix (Matrix Market)")
 
+    # --tss/--tss-file (and --window) only drive the cis-window query used to
+    # extract genotypes from --vcf; with a pre-extracted --geno table, the
+    # variants/cis-window are already fixed by that file, so these flags
+    # would silently do nothing if allowed through without comment.
+    if args["vcf"] === nothing && (args["tss"] !== nothing || args["tss-file"] !== nothing)
+        @warn "--tss/--tss-file only apply to --vcf extraction and are ignored with --geno " *
+              "(a pre-extracted genotype table already fixes its own variants/cis-window)."
+    end
+
     covariates           = splitcsv(args["covariates"])
     contexts             = splitcsv(args["contexts"])
     interaction_with_arg = args["interaction-with"] === nothing ? nothing : splitcsv(args["interaction-with"])

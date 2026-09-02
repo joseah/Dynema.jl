@@ -2,7 +2,7 @@
 CurrentModule = Dynema
 ```
 
-# Mapping main eQTL effects (context-independent)
+# Main effect (context-independent)
 
 
 A traditional eQTL mapping focuses on testing a variant's **main effect** on gene expression. This effect is constant and **indepedendent** of any context(s). In the case of single-cell data, it reflects an average or baseline genetic effect across the whole cell population. 
@@ -17,7 +17,10 @@ First, let's define a formula to specify our eQTL mappin strategy:
 
 
 ```@example main_effect
-f_main = @formula(0 ~ 1 + G + C1 + C2 + C3)
+f_main = @formula(0 ~ 1 + G + C1 + C2 + C3 +
+                       scaled_age + sex + scaled_log_nUMI + percent_mito +
+                       gPC1 + gPC2 + gPC3 + gPC4 + gPC5 +
+                       ePC1 + ePC2 + ePC3 + ePC4 + ePC5)
 ```
 
 To map a main effect, the minimal terms required are:
@@ -29,9 +32,9 @@ To map a main effect, the minimal terms required are:
 > 1. `Dynema` exlusively reserves the use of the term `G` to encode the genetic variant term. When using Dynema, please do not name any column as `G` as it might trigger some errors.
 > 2. The response coding does not matter, for convention we use `0 ~`.
 
-Additionally, we include can include covariates to control for biological and experimental sources of confounding. For Dynema's framework, we need to encode all variables at the single-cell-level (i.e. a value for every single cell). 
+Additionally, we can include covariates to control for biological and experimental sources of confounding. For Dynema's framework, we need to encode all variables at the single-cell-level (i.e. a value for every single cell) -- a donor-level covariate like `scaled_age` just repeats the same value across all of that donor's cells.
 
-In this example, we add cell state covariate terms for `C1-3` to account for differential expression confounding.
+In this example, we add cell state covariate terms for `C1-3` to account for differential expression confounding, plus donor-level covariates (`scaled_age`, `sex`, `gPC1-5`) and single-cell-level covariates (`scaled_log_nUMI`, `percent_mito`, `ePC1-5`) -- the same covariates the [command-line interface](../tutorials/cli_main_effect.md) passes via `--covariates`.
 
 
 `Dynema`' main function is `map_locus`. Because this is a generalized function, we can map any type eQTL effect with it by just changing the formula. Let's provide the following arguments to `map_locus`:

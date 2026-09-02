@@ -2,7 +2,7 @@
 CurrentModule = Dynema
 ```
 
-# Mapping interaction eQTL effects (context-depedent)
+# Interaction effect (context-dependent)
 
 
 Besides an eQTL's **main effect**, Dynema can map context-depedent eQTLs by testing **interaction effect(s)**. In this example, we can map interaction effects with each of the cell states with a **single-context interaction** test or all cell states of interests jointly with a **multi-contetext interaction** test.
@@ -20,8 +20,18 @@ Let's consider the question: is the effect of an eQTL different between non-cyto
 Let's define the formula:
 
 ```@example interaction
-f_GXC1 = @formula(0 ~ 1 + G + C1 + C2 + C3 + G & C1)
+f_GXC1 = @formula(0 ~ 1 + G + C1 + C2 + C3 +
+                       scaled_age + sex + scaled_log_nUMI + percent_mito +
+                       gPC1 + gPC2 + gPC3 + gPC4 + gPC5 +
+                       ePC1 + ePC2 + ePC3 + ePC4 + ePC5 +
+                       G & C1)
 ```
+
+As in [Main effect](main_effect.md), we include donor- and
+single-cell-level covariates (`scaled_age`, `sex`, `gPC1-5`,
+`scaled_log_nUMI`, `percent_mito`, `ePC1-5`) alongside the contexts -- the
+same covariates the [command-line interface](cli_interaction_effect.md)
+passes via `--covariates`.
 
 Notice that the interaction term **G x C1** is denoted as `G & CV1`. 
 
@@ -65,7 +75,11 @@ Let's consider now mapping single-context interaction with Treg/activation statu
 
 
 ```@example interaction
-f_GXC2 = @formula(0 ~ 1 + G + C1 + C2 + C3 + G & C2)
+f_GXC2 = @formula(0 ~ 1 + G + C1 + C2 + C3 +
+                       scaled_age + sex + scaled_log_nUMI + percent_mito +
+                       gPC1 + gPC2 + gPC3 + gPC4 + gPC5 +
+                       ePC1 + ePC2 + ePC3 + ePC4 + ePC5 +
+                       G & C2)
 
 res_gxc2 = map_locus(f_GXC2;
         pheno = expr,
@@ -105,7 +119,11 @@ We can also test multiple contexts at once as follows:
 
 
 ```@example interaction
-f_int = @formula(0 ~ 1 + G + C1 + C2 + C3 + G & C1 + G & C2 + G & C3)
+f_int = @formula(0 ~ 1 + G + C1 + C2 + C3 +
+                      scaled_age + sex + scaled_log_nUMI + percent_mito +
+                      gPC1 + gPC2 + gPC3 + gPC4 + gPC5 +
+                      ePC1 + ePC2 + ePC3 + ePC4 + ePC5 +
+                      G & C1 + G & C2 + G & C3)
 
 res_int = map_locus(f_int;
         pheno = expr,

@@ -59,3 +59,16 @@ set_pos!
 set_gene!
 set_chr!
 ```
+
+## Command-line extraction helpers
+
+The extraction behind the [`dynema-map`/`dynema-extract-geno` command-line
+tools](tutorials/command_line.md) (`--vcf`/`--expr-prefix`) is implemented
+as regular exported functions, callable directly from Julia without going
+through either CLI wrapper.
+
+```@docs
+extract_geno_dataframe
+extract_gene_expression
+resolve_mtx_triplet
+```
