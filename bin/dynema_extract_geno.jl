@@ -5,11 +5,12 @@
 #
 # Extracts a donor x variant dosage matrix for the cis-window around one
 # gene's TSS from a bgzipped, tabix-indexed VCF (vcf.gz + .tbi/.csi), in
-# exactly the format expected by `dynema_map.jl --geno`. (`dynema_map.jl` can
-# also do this extraction on the fly via its own `--vcf` option, using the
-# same underlying code in vcf_geno.jl -- use this script instead when you
-# want the extracted matrix saved to a file, e.g. to reuse across runs or
-# inspect it directly.)
+# exactly the format expected by `dynema_map.jl --geno`. Thin CLI wrapper
+# around `Dynema.extract_geno_dataframe` -- a core library function, also
+# used on the fly by `dynema_map.jl --vcf`, and callable directly from any
+# Julia session/script (`using Dynema`) without either CLI wrapper. Use
+# this script instead of `dynema_map.jl --vcf` when you want the extracted
+# matrix saved to a file, e.g. to reuse across runs or inspect it directly.
 #
 # Assumes the VCF already carries per-sample genotype dosages (FORMAT field
 # `DS`) and/or genotype probabilities (FORMAT field `GP`) -- as produced by
@@ -57,9 +58,9 @@ Pkg.instantiate()
 using ArgParse
 using CSV
 using DataFrames
+using Dynema # extract_geno_dataframe
 
-include(joinpath(CLI_DIR, "cli_output.jl")) # section, bullet -- used by vcf_geno.jl's extract_geno_dataframe
-include(joinpath(CLI_DIR, "vcf_geno.jl")) # resolve_region, run_tabix, variant_dosage, extract_geno_dataframe
+include(joinpath(CLI_DIR, "cli_output.jl")) # section, bullet, with_tee_log, shell_quote
 
 # ---------------------------------------------------------------------------- #
 #                              Argument parsing                                #
@@ -132,7 +133,10 @@ end
 
 function run_extract(args)
 
-    out_df = extract_geno_dataframe(
+    section("Extracting genotypes from VCF")
+    bullet("file: $(args["vcf"])")
+
+    r = extract_geno_dataframe(
         vcf = args["vcf"],
         chr = args["chr"],
         tss = args["tss"],
@@ -144,11 +148,19 @@ function run_extract(args)
         donor_col = args["donor-col"],
         maf = args["maf"],
         max_missing = args["max-missing"],
+        verbose = false,
     )
+    bullet("cis-window: $(r.chr):$(r.start_pos)-$(r.end_pos) (TSS $(r.tss) +/- $(args["window"]) bp)")
+    bullet("samples: $(r.n_samples_vcf) in VCF, $(r.n_samples_matched) retained after sample matching")
+    bullet("variants in region: $(r.n_variants_total)")
+    bullet("skipped (multiallelic): $(r.n_multiallelic)", indent = 2)
+    bullet("skipped (missing GP/DS field): $(r.n_no_field)", indent = 2)
+    bullet("skipped (missingness > $(args["max-missing"])): $(r.n_high_missing)", indent = 2)
+    bullet("retained after MAF >= $(args["maf"]) filter: $(r.n_retained)", indent = 2)
 
-    CSV.write(args["out"], out_df; delim = '\t')
+    CSV.write(args["out"], r.geno; delim = '\t')
     section("Done")
-    bullet("wrote $(ncol(out_df) - 1) variant(s) x $(nrow(out_df)) donor(s) to $(args["out"])")
+    bullet("wrote $(r.n_retained) variant(s) x $(nrow(r.geno)) donor(s) to $(args["out"])")
 
 end
 

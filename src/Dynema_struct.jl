@@ -235,8 +235,30 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
 
     end
 
-    println(io, Crayon(reset = true), "\nResults")
-    pretty_table(io, glance, header = (names(glance)))
+    # With many covariates/contexts, `summ` can have dozens of columns --
+    # too wide to print without either wrapping mid-row (illegible) or
+    # relying on terminal-width auto-cropping (unreliable once stdout is
+    # redirected, e.g. for --log). Instead, always show variant/stat/p plus
+    # whichever column(s) were actually tested (`termtest`); everything else
+    # (intercept, covariates, untested contexts) is still in `summ`/--out,
+    # just not in this console preview.
+    tt_cols = get_termtest(m) isa AbstractVector ? get_termtest(m) : [get_termtest(m)]
+    key_cols = filter(c -> c in names(glance), unique(vcat(["variant", get_stattype(m), "p"], tt_cols)))
+
+    if length(key_cols) < ncol(glance)
+
+        n_hidden = ncol(glance) - length(key_cols)
+        shown = glance[:, key_cols]
+        println(io, Crayon(reset = true), "\nResults (variant/stat/p/tested term(s); ",
+                "$n_hidden more column(s) -- covariates, untested contexts -- in the full results/--out file)")
+        pretty_table(io, shown, header = (names(shown)))
+
+    else
+
+        println(io, Crayon(reset = true), "\nResults")
+        pretty_table(io, glance, header = (names(glance)))
+
+    end
 
     if m.boot
         println(io, "** smallest p-value computed = $(2/sum(get_B(m))); report as p < $(2/sum(get_B(m)))\n")

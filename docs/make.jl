@@ -23,9 +23,14 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Tutorials" => [
-            "Simulate data" => "tutorials/simulation.md",
-            "Mapping main eQTL effects (context-independent)" => "tutorials/main_effect.md",
-            "Mapping interaction eQTL effects (context-dependent)" => "tutorials/interaction.md",
+            "CLI: Command-line overview" => "tutorials/command_line.md",
+            "CLI: Main effect (context-independent)" => "tutorials/cli_main_effect.md",
+            "CLI: Interaction effect (context-dependent)" => "tutorials/cli_interaction_effect.md",
+            "CLI: Total effect (main + interaction)" => "tutorials/cli_total_effect.md",
+            "Julia API: Download demo data" => "tutorials/simulation.md",
+            "Julia API: Main effect (context-independent)" => "tutorials/main_effect.md",
+            "Julia API: Interaction effect (context-dependent)" => "tutorials/interaction.md",
+            "Julia API: Total effect (main + interaction)" => "tutorials/total_effect.md",
         ],
         "API Reference" => "functions.md",
         "Internals" => "internals.md",

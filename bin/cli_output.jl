@@ -7,9 +7,11 @@
 # instead of a flat stream of unlabeled println's, plus a `with_tee_log`
 # helper that duplicates everything printed during a run to a log file
 # (alongside the exact command invoked) while still showing it on the
-# console as normal. `include()`d before vcf_geno.jl/mtx_expr.jl by every
-# entry-point script that uses them (dynema_map.jl, dynema_extract_geno.jl),
-# since those shared files call `section`/`bullet` too.
+# console as normal. `include()`d by both dynema_map.jl and
+# dynema_extract_geno.jl, which call `section`/`bullet` themselves around
+# the actual extraction/mapping work (done by Dynema library functions --
+# see src/vcf_genotypes.jl, src/matrix_market_expression.jl -- which know
+# nothing about this CLI-only formatting).
 
 using Dates
 

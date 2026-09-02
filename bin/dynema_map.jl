@@ -6,14 +6,21 @@
 # Command-line wrapper around `Dynema.map_locus` for users who don't want to
 # write any Julia code. Reads single-cell gene expression either from a plain
 # --expr TSV/CSV or extracted on the fly for one gene from an --expr-prefix
-# Matrix Market triplet (see mtx_expr.jl), reads single-cell metadata from a
-# plain TSV/CSV, gets donor-level genotype dosages either from a
-# pre-extracted --geno matrix or extracted on the fly for the tested gene's
-# cis-window from a --vcf (see vcf_geno.jl), builds the eQTL model formula
-# from a handful of flags, runs Dynema for one gene against one or more
-# genetic variants, and writes a summary statistics table. The full console
+# Matrix Market triplet (via Dynema.extract_gene_expression), reads
+# single-cell metadata from a plain TSV/CSV, gets donor-level genotype
+# dosages either from a pre-extracted --geno matrix or extracted on the fly
+# for the tested gene's cis-window from a --vcf (via
+# Dynema.extract_geno_dataframe), builds the eQTL model formula from a
+# handful of flags, runs Dynema for one gene against one or more genetic
+# variants, and writes a summary statistics table. The full console
 # transcript, plus the exact command run, is also saved to --log (default:
 # --out with its extension swapped for .log) -- see cli_output.jl.
+#
+# The VCF and Matrix Market extraction this script uses are core Dynema
+# library functions, not CLI-only code -- `Dynema.extract_geno_dataframe`
+# and `Dynema.extract_gene_expression`/`Dynema.resolve_mtx_triplet` can be
+# called directly from any Julia session/script (`using Dynema`), without
+# this CLI wrapper at all.
 #
 # Usage (pre-extracted genotype matrix):
 #   julia --project=<this-dir> dynema_map.jl --geno geno.tsv [options]
@@ -50,12 +57,9 @@ using ArgParse
 using CSV
 using DataFrames
 using StatsModels
-using CategoricalArrays
-using Dynema
+using Dynema # also brings in extract_geno_dataframe, extract_gene_expression, resolve_mtx_triplet
 
-include(joinpath(CLI_DIR, "cli_output.jl")) # section, bullet, elapsed_str -- used here and by the includes below
-include(joinpath(CLI_DIR, "vcf_geno.jl")) # extract_geno_dataframe, for --vcf on-the-fly extraction
-include(joinpath(CLI_DIR, "mtx_expr.jl"))  # resolve_mtx_triplet, extract_gene_expression, for --expr-prefix on-the-fly extraction
+include(joinpath(CLI_DIR, "cli_output.jl")) # section, bullet, elapsed_str, with_tee_log, shell_quote
 
 # ---------------------------------------------------------------------------- #
 #                              Argument parsing                                #
@@ -130,16 +134,16 @@ function parse_commandline()
             arg_type = String
             default = ""
         "--contexts"
-            help = "Comma-separated list of cell-state/context column names in --meta (e.g. C1,C2,C3). Always included as covariates and available for interaction testing."
+            help = "Comma-separated list of cell-state/context column names in --meta (e.g. C1,C2,C3). Always included as covariates. Required (and must be non-empty) when --effect is interaction/total, alongside --interaction-with."
             arg_type = String
             default = ""
-        "--test"
-            help = "Effect to test: 'main' (context-independent), 'interaction' (single- or multi-context), or 'total' (main + interaction jointly)."
+        "--effect"
+            help = "Effect to test: 'main' (context-independent), 'interaction' (single- or multi-context), or 'total' (main + interaction jointly). Always required -- no default -- to avoid silently testing the wrong effect."
             arg_type = String
-            default = "main"
+            required = true
             range_tester = x -> x in ("main", "interaction", "total")
         "--interaction-with"
-            help = "Comma-separated subset of --contexts to test a G-by-context interaction for. Required for --test interaction/total unless --contexts is set, in which case it defaults to all of --contexts."
+            help = "Comma-separated subset of --contexts to include as G-by-context interaction terms in the model. Required (and must be non-empty), alongside a non-empty --contexts, when --effect is interaction/total -- neither is ever defaulted or guessed. Optional with --effect main: if given there, the interaction terms are still added to the formula (e.g. to adjust for/include an interaction without testing it), just not tested."
             default = nothing
         "--boot"
             help = "Also compute empirical p-values via adaptive score bootstrapping (recommended for small or imbalanced cohorts)."
@@ -188,11 +192,49 @@ splitcsv(x::AbstractString) = isempty(strip(x)) ? String[] : String.(strip.(spli
 readtable(path::AbstractString) = CSV.read(path, DataFrame)
 
 """
-    build_formula(covariates, contexts, test, interaction_with)
+    resolve_interactions(effect, contexts, interaction_with_arg) -> Vector{String}
+
+Resolves the contexts that should actually appear as `G & context` terms in
+the model formula (passed to `build_formula`, and used to validate --meta's
+columns before that):
+
+- If `--effect` is `interaction`/`total` (which always test at least one
+  `G & context` term), both `--contexts` and `--interaction-with` must be
+  given explicitly and non-empty -- errors immediately otherwise, rather
+  than guessing a set of interactions or silently modeling a G-by-context
+  interaction with no declared context main effects.
+- If `--effect` is `main`, `--interaction-with` is optional: given
+  explicitly, its contexts are still added to the formula (e.g. so
+  `--effect main --interaction-with CV1` can adjust for/include a G x CV1
+  interaction in the model without testing it); omitted, no interaction
+  terms at all are added.
+"""
+function resolve_interactions(effect::String, contexts::Vector{String},
+                               interaction_with_arg::Union{Nothing,Vector{String}})
+
+    needs_interaction = effect in ("interaction", "total")
+
+    if needs_interaction
+        isempty(contexts) &&
+            error("--effect $effect requires a non-empty --contexts (the context(s) to test G-by-context interactions for)")
+        (interaction_with_arg === nothing || isempty(interaction_with_arg)) &&
+            error("--effect $effect requires --interaction-with (a non-empty, comma-separated subset of --contexts)")
+    end
+
+    return interaction_with_arg === nothing ? String[] : interaction_with_arg
+
+end
+
+"""
+    build_formula(covariates, contexts, effect, interaction_with)
 
 Builds a `FormulaTerm` and the `termtest` argument for `map_locus`
 programmatically (equivalent to writing e.g. `@formula(0 ~ 1 + G + C1 + G & C1)`
 by hand), from plain lists of column names supplied on the command line.
+`interaction_with` (see `resolve_interactions`) is always added to the
+formula as `G & context` terms when non-empty; only added to `termtest`
+(i.e. actually tested, alongside/instead of `G`) when `effect` is
+`interaction`/`total`.
 
 Any context named in `interaction_with` that isn't also in `contexts` is
 still given a main-effect term in the formula (a `G & context` interaction
@@ -201,10 +243,10 @@ statistically improper model), and a warning is printed -- this most often
 means `--contexts`/`--interaction-with` have a typo relative to each other.
 """
 function build_formula(covariates::Vector{String}, contexts::Vector{String},
-                        test::String, interaction_with::Vector{String})
+                        effect::String, interaction_with::Vector{String})
 
     extra_contexts = setdiff(interaction_with, contexts)
-    if !isempty(extra_contexts) && test in ("interaction", "total")
+    if !isempty(extra_contexts)
         @warn "--interaction-with includes context(s) not in --contexts ($(join(extra_contexts, ", "))); " *
               "adding them as main-effect covariates too, since an interaction term needs its main effect " *
               "in the model. Double check --contexts/--interaction-with for a typo if this is unexpected."
@@ -218,18 +260,20 @@ function build_formula(covariates::Vector{String}, contexts::Vector{String},
     for c in all_contexts
         push!(rhs_terms, term(Symbol(c)))
     end
+    for c in interaction_with
+        push!(rhs_terms, term(:G) & term(Symbol(c)))
+    end
 
     termtest = String[]
 
-    if test in ("main", "total")
+    if effect in ("main", "total")
         push!(termtest, "G")
     end
 
-    if test in ("interaction", "total")
+    if effect in ("interaction", "total")
         isempty(interaction_with) &&
-            error("--test $test requires --interaction-with (or a non-empty --contexts to default to)")
+            error("--effect $effect requires a non-empty --interaction-with (this should have been caught earlier by resolve_interactions)")
         for c in interaction_with
-            push!(rhs_terms, term(:G) & term(Symbol(c)))
             push!(termtest, "G & $(c)")
         end
     end
@@ -266,10 +310,14 @@ function run_map(args; term_size = displaysize(stdout))
     (args["expr"] === nothing) == (args["expr-prefix"] === nothing) &&
         error("Provide exactly one of --expr (TSV/CSV) or --expr-prefix (Matrix Market)")
 
-    covariates       = splitcsv(args["covariates"])
-    contexts         = splitcsv(args["contexts"])
-    interaction_with = args["interaction-with"] === nothing ? contexts : splitcsv(args["interaction-with"])
-    variant_filter   = splitcsv(args["variants"])
+    covariates           = splitcsv(args["covariates"])
+    contexts             = splitcsv(args["contexts"])
+    interaction_with_arg = args["interaction-with"] === nothing ? nothing : splitcsv(args["interaction-with"])
+    # Fails immediately (before any file loading below) if --effect
+    # interaction/total was given without a non-empty --interaction-with --
+    # see resolve_interactions's docstring.
+    interaction_with     = resolve_interactions(args["effect"], contexts, interaction_with_arg)
+    variant_filter       = splitcsv(args["variants"])
     B                = parse.(Int, splitcsv(args["B"]))
     ptype            = Symbol(args["ptype"])
     id_col           = args["cell-id-col"]
@@ -279,10 +327,18 @@ function run_map(args; term_size = displaysize(stdout))
 
     gene = args["gene"]
 
+    # --tss-file looks the TSS up *by gene name*, but genotype extraction
+    # below now runs before expression loading -- so unlike the expression
+    # branches, there's no header/single-column fallback left to infer
+    # --gene from at that point. Fail fast rather than silently querying
+    # the wrong region (or erroring confusingly deep inside resolve_region).
+    (args["vcf"] !== nothing && args["tss-file"] !== nothing && gene === nothing) &&
+        error("--tss-file requires --gene to look up the TSS")
+
     # Validate --meta's columns (cell id, donor id, contexts, covariates) up
-    # front, before the potentially slow --expr/--expr-prefix read below --
+    # front, before the potentially slow genotype/expression reads below --
     # so a typo'd column name fails fast instead of after a multi-minute
-    # Matrix Market scan.
+    # VCF/Matrix Market extraction.
     section("Reading metadata")
     bullet("file: $(args["meta"])")
     meta = readtable(args["meta"])
@@ -294,20 +350,70 @@ function run_map(args; term_size = displaysize(stdout))
     bullet("cell-id column: $id_col, donor-id column: $donor_col")
     isempty(covariates) || bullet("covariates: $(join(covariates, ", "))")
     isempty(contexts) || bullet("contexts: $(join(contexts, ", "))")
-    bullet("$(nrow(meta)) cell(s)")
+    bullet("found $(nrow(meta)) cell(s)")
+    bullet("found $(length(unique(meta[:, donor_col]))) donor(s)")
+
+    # Genotypes are loaded before expression: --vcf extraction is normally
+    # much faster than a --expr-prefix Matrix Market scan (a full sequential
+    # pass over a potentially multi-GB file), so failures in the genotype
+    # step surface before paying that cost.
+    geno_t0 = time()
+    geno_df = if args["vcf"] !== nothing
+        section("Extracting genotypes from VCF")
+        bullet("file: $(args["vcf"])")
+        r = extract_geno_dataframe(
+            vcf = args["vcf"],
+            chr = args["chr"],
+            tss = args["tss"],
+            tss_file = args["tss-file"],
+            gene = args["tss-file"] === nothing ? nothing : gene,
+            window = args["window"],
+            field = args["field"],
+            samples_file = args["samples"],
+            donor_col = donor_col,
+            maf = args["maf"],
+            max_missing = args["max-missing"],
+            verbose = false,
+        )
+        bullet("cis-window: $(r.chr):$(r.start_pos)-$(r.end_pos) (TSS $(r.tss) +/- $(args["window"]) bp)")
+        bullet("samples: $(r.n_samples_vcf) in VCF, $(r.n_samples_matched) retained after sample matching")
+        bullet("variants in region: $(r.n_variants_total)")
+        bullet("skipped (multiallelic): $(r.n_multiallelic)", indent = 2)
+        bullet("skipped (missing GP/DS field): $(r.n_no_field)", indent = 2)
+        bullet("skipped (missingness > $(args["max-missing"])): $(r.n_high_missing)", indent = 2)
+        bullet("retained after MAF >= $(args["maf"]) filter: $(r.n_retained)", indent = 2)
+        r.geno
+    else
+        section("Reading genotypes")
+        bullet("file: $(args["geno"])")
+        readtable(args["geno"])
+    end
+    bullet("done in $(elapsed_str(geno_t0))")
+    donor_col in names(geno_df) || error("Genotype table is missing donor-id column '$donor_col'")
+    ncol(geno_df) == 1 &&
+        error("No variants in the genotype table (0 columns besides '$donor_col'); nothing to test. " *
+              "Check --chr/--tss/--window (or --tss-file) and --maf/--max-missing.")
 
     expr_t0 = time()
     expr_df = if args["expr-prefix"] !== nothing
         gene === nothing &&
             error("--expr-prefix requires --gene (there's no header row to infer a single gene from)")
         mtx, features, barcodes = resolve_mtx_triplet(args["expr-prefix"])
-        extract_gene_expression(
+        section("Reading gene expression (Matrix Market)")
+        bullet("matrix:    $mtx")
+        bullet("features:  $features")
+        bullet("barcodes:  $barcodes")
+        r = extract_gene_expression(
             mtx = mtx,
             features = features,
             barcodes = barcodes,
             gene = gene,
             id_col = id_col,
+            verbose = false,
         )
+        bullet("gene '$gene' found at row $(r.target_row) of $(r.n_genes)")
+        bullet("found $(r.n_found) nonzero entries for '$gene' across $(r.n_cells) cell(s)")
+        r.expr
     else
         section("Reading gene expression")
         bullet("file: $(args["expr"])")
@@ -323,29 +429,6 @@ function run_map(args; term_size = displaysize(stdout))
             error("Expression table has multiple gene columns ($(join(gene_cols, ", "))); specify --gene")
     end
     gene in names(expr_df) || error("Gene '$gene' not found in the expression table")
-
-    geno_t0 = time()
-    geno_df = if args["vcf"] !== nothing
-        extract_geno_dataframe(
-            vcf = args["vcf"],
-            chr = args["chr"],
-            tss = args["tss"],
-            tss_file = args["tss-file"],
-            gene = args["tss-file"] === nothing ? nothing : gene,
-            window = args["window"],
-            field = args["field"],
-            samples_file = args["samples"],
-            donor_col = donor_col,
-            maf = args["maf"],
-            max_missing = args["max-missing"],
-        )
-    else
-        section("Reading genotypes")
-        bullet("file: $(args["geno"])")
-        readtable(args["geno"])
-    end
-    bullet("done in $(elapsed_str(geno_t0))")
-    donor_col in names(geno_df) || error("Genotype table is missing donor-id column '$donor_col'")
 
     # ----------------------- Align expression to metadata --------------------- #
 
@@ -372,7 +455,7 @@ function run_map(args; term_size = displaysize(stdout))
 
     # --------------------------- Build model formula --------------------------- #
 
-    f, termtest = build_formula(covariates, contexts, args["test"], interaction_with)
+    f, termtest = build_formula(covariates, contexts, args["effect"], interaction_with)
     section("Model")
     bullet("formula: $f")
     bullet("testing term(s): $(termtest isa AbstractVector ? join(termtest, ", ") : termtest)")

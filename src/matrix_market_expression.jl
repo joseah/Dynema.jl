@@ -1,12 +1,12 @@
 # ---------------------------------------------------------------------------- #
-#                                  mtx_expr.jl                                 #
+#                          matrix_market_expression.jl                         #
 # ---------------------------------------------------------------------------- #
 #
-# Extracts a single gene's expression vector from a (optionally gzipped)
-# Matrix Market (.mtx) sparse count matrix -- genes as rows, cells as
-# columns, as commonly exported from Seurat/scanpy pipelines -- plus its
-# accompanying features (gene names, one per row) and barcodes (cell ids,
-# one per column) files. `include()`d by dynema_map.jl.
+# Core single-gene extraction from a Matrix Market (.mtx) sparse count
+# matrix -- genes as rows, cells as columns, as commonly exported from
+# Seurat/scanpy pipelines -- usable directly from Julia code (not just via
+# bin/dynema-map) -- see `extract_gene_expression` below, the public entry
+# point.
 #
 # Matrix Market coordinate files store nonzero (row, col, value) triples,
 # typically sorted by column rather than by row/gene, with no separate index:
@@ -22,14 +22,12 @@
 # essentially constant memory use rather than needing to materialize the
 # whole matrix.
 
-using CodecZlib
-using DataFrames
-
 """
     open_maybe_gzip(path) -> IO
 
 Opens `path` for reading, transparently decompressing it if it ends in
-`.gz`.
+`.gz`. Internal helper for `extract_gene_expression`/`read_labels`; not
+exported.
 """
 function open_maybe_gzip(path::AbstractString)
     io = open(path)
@@ -41,7 +39,8 @@ end
 
 Reads a features/barcodes file: one label per line, gzip-transparent. If a
 line has multiple tab-separated fields (e.g. a 10x-style features.tsv with
-Ensembl id + gene symbol columns), the *last* field is used.
+Ensembl id + gene symbol columns), the *last* field is used. Internal
+helper for `extract_gene_expression`; not exported.
 """
 function read_labels(path::AbstractString)
     io = open_maybe_gzip(path)
@@ -82,42 +81,52 @@ function resolve_mtx_triplet(prefix::AbstractString)
     barcodes === nothing && push!(missing_msgs, "barcodes: none of $(join(barcodes_tried, ", ")) exist")
 
     isempty(missing_msgs) ||
-        error("--expr-prefix '$prefix' is missing expected file(s):\n  " * join(missing_msgs, "\n  "))
+        error("Matrix Market prefix '$prefix' is missing expected file(s):\n  " * join(missing_msgs, "\n  "))
 
     return mtx, features, barcodes
 
 end
 
 """
-    extract_gene_expression(; mtx, features, barcodes, gene, id_col="cell_id") -> DataFrame
+    extract_gene_expression(; mtx, features, barcodes, gene, id_col="cell_id", verbose=true)
 
-Streams through `mtx` once, extracting the expression of `gene` (matched
-against `features`, one entry per matrix row) across every cell (one entry
-per matrix column, named from `barcodes`). Matrix entries not present in the
-sparse file are zero. Returns a two-column DataFrame (`id_col`, `gene`),
-shaped exactly like a plain `--expr` TSV would be.
+Core Matrix Market single-gene extraction: streams through `mtx` once,
+extracting the expression of `gene` (matched against `features`, one entry
+per matrix row) across every cell (one entry per matrix column, named from
+`barcodes`), without ever loading the whole sparse matrix into memory (see
+module-level comment above). Matrix entries not present in the sparse file
+are zero.
+
+Returns a `NamedTuple` with:
+- `expr::DataFrame`: two columns (`id_col`, `gene`), shaped exactly like a plain
+  `dynema-map --expr` TSV would be.
+- `target_row`, `n_genes`: which row `gene` was found at, and how many genes/rows
+  `features` has in total.
+- `n_cells`: number of cells/columns (from `barcodes`).
+- `n_found`: number of nonzero entries read for `gene`.
+
+Set `verbose=false` to suppress the built-in progress `println`s -- e.g. for
+a caller (like the `dynema-map` CLI) that wants to render its own progress
+messages from the returned counts instead.
 """
 function extract_gene_expression(; mtx::AbstractString, features::AbstractString,
                                   barcodes::AbstractString, gene::AbstractString,
-                                  id_col::AbstractString = "cell_id")
+                                  id_col::AbstractString = "cell_id",
+                                  verbose::Bool = true)
 
-    section("Reading gene expression (Matrix Market)")
-    bullet("matrix:    $mtx")
-    bullet("features:  $features")
-    bullet("barcodes:  $barcodes")
-
+    printlnv("Reading gene list from $features..."; verbose)
     gene_names = read_labels(features)
     row_matches = findall(==(gene), gene_names)
     isempty(row_matches) && error("Gene '$gene' not found in $features")
     length(row_matches) > 1 &&
         error("Gene '$gene' matches $(length(row_matches)) rows in $features; expected exactly one")
     target_row = row_matches[1]
-    bullet("gene '$gene' found at row $target_row of $(length(gene_names))")
 
+    printlnv("Reading cell barcodes from $barcodes..."; verbose)
     cell_ids = read_labels(barcodes)
     n_cells = length(cell_ids)
 
-    bullet("scanning for '$gene' across $n_cells cell(s)...")
+    printlnv("Scanning $mtx for gene '$gene' (row $target_row of $(length(gene_names)))..."; verbose)
     io = open_maybe_gzip(mtx)
     expr = zeros(Float64, n_cells)
     n_found = 0
@@ -159,12 +168,12 @@ function extract_gene_expression(; mtx::AbstractString, features::AbstractString
     end
 
     dims_read || error("$mtx has no data after its comment header")
-    bullet("found $n_found nonzero entries for '$gene' across $n_cells cell(s)")
+    printlnv("Found $n_found nonzero entries for '$gene' across $n_cells cells"; verbose)
 
     df = DataFrame()
     df[!, id_col] = cell_ids
     df[!, gene] = expr
 
-    return df
+    return (; expr = df, target_row, n_genes = length(gene_names), n_cells, n_found)
 
 end

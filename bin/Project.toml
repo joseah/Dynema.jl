@@ -1,9 +1,13 @@
 name = "DynemaCLI"
 
-# Standalone environment for the dynema_map.jl command-line wrapper.
-# Kept separate from the main package's Project.toml so that ArgParse/CSV
-# (needed only for the CLI, not the library) are never required to use
-# Dynema.jl programmatically.
+# Standalone environment for the dynema_map.jl/dynema_extract_geno.jl
+# command-line wrappers. Kept separate from the main package's Project.toml
+# so that CLI-only dependencies (ArgParse, Dates, and the direct use of
+# CSV/DataFrames/StatsModels for reading input files and building formulas
+# here) are never required to use Dynema.jl programmatically -- the actual
+# VCF/Matrix Market extraction logic lives in the Dynema package itself
+# (see src/vcf_genotypes.jl, src/matrix_market_expression.jl), which these
+# scripts just call into via `using Dynema`.
 #
 # First run bootstraps itself (see dynema_map.jl), so users only need Julia
 # installed -- no manual `Pkg.add` calls.
@@ -11,11 +15,7 @@ name = "DynemaCLI"
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
-CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
-CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Dynema = "bc27e32f-14b0-4d32-98d5-b88f38cd41e7"
-Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsModels = "3eaba693-59b7-5ba5-a881-562e759f1c8d"
-htslib_jll = "f06fe41e-9474-5571-8c61-5634d2b2700c"
