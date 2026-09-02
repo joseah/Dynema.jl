@@ -10,16 +10,10 @@ See our pre-print using this [link](https://www.biorxiv.org/content/10.64898/202
 
 **No Julia coding required:** Dynema ships a command-line interface that runs the full mapping workflow -- straight from a VCF and a Matrix Market count matrix (or plain TSV/CSV files) to a summary statistics table -- entirely from the terminal. See [CLI: Command-line overview](tutorials/command_line.md) to get started. A Julia API is also available for anyone who wants to call Dynema directly from their own scripts or pipelines.
 
-## Installation
-
-You can install it directly from GitHub:
-
-```bash
-julia -e 'using Pkg; Pkg.add(url = "https://github.com/joseah/Dynema.jl")'
-```
-
 ## Getting started
 
+- [Installing Julia](tutorials/installing_julia.md) walks through getting
+  Julia set up if you don't have it yet.
 - [CLI: Command-line interface overview](tutorials/command_line.md) familiarizes with 
   running *Dynema* and its parameters from a VCF and a Matrix Market count 
   matrix -- or plain TSV/CSV files -- without writing any Julia code.

@@ -1,7 +1,7 @@
 # Command-line interface (CLI)
 
-First, you need to install Julia. You can do this very easily using the 
-[juliaup](https://github.com/julialang/juliaup) tool.
+See [Installing Julia](installing_julia.md) if you don't have Julia
+installed yet.
 
 **You don't need to write any Julia to run *Dynema*!**. The `bin/` folder of the
 [Dynema.jl repository](https://github.com/joseah/Dynema.jl) ships a
@@ -19,8 +19,8 @@ itself.
 
 
 ```bash
-curl -L https://github.com/joseah/Dynema.jl/archive/refs/heads/dev.tar.gz | tar -xz
-mv Dynema.jl-dev Dynema.jl
+curl -L https://github.com/joseah/Dynema.jl/archive/refs/heads/main.tar.gz | tar -xz
+mv Dynema.jl-main Dynema.jl
 cd Dynema.jl
 ./bin/dynema-map --help
 ```
@@ -51,7 +51,7 @@ than a pre-extracted per-gene genotype table, and from a Matrix Market
 count export (`.mtx[.gz]` + `.features[.gz]` + `.barcodes[.gz]`). `dynema-map` 
 can read both directly. 
 
-Here's a simple example to illustrate the parameter usage:
+Here's a simple example just to illustrate the parameter usage (do not run):
 
 ```bash
 ./bin/dynema-map \
@@ -104,15 +104,6 @@ Arguments:
 effect is assessed. 
 - `--out`: output file with summary statistics.
 
-## Examples: main, interaction, and total effects
-
-Three separate tutorials each walk through one of `--effect`'s modes:
-
-- [Main effect (context-independent)](cli_main_effect.md)
-- [Interaction effect (context-dependent)](cli_interaction_effect.md)
-- [Total effect (main + interaction)](cli_total_effect.md)
-
-
 
 ## Running Dynema plain text files
 
@@ -121,6 +112,8 @@ TSV/CSV tables, pass them with
 `--expr`/`--geno` instead of `--expr-prefix`/`--vcf` -- everything else
 about `--meta`/`--covariates`/`--contexts`/`--effect`/`--interaction-with`
 works exactly the same way.
+
+Here's a simple example just to illustrate the parameter usage (do not run):
 
 ```bash
 ./bin/dynema-map \
@@ -141,3 +134,15 @@ works exactly the same way.
 
 Run `./bin/dynema-map --help` for the complete list of options (adaptive score bootstrapping
 with `--boot`, distributing variants across worker processes with `--parallel`, and more).
+
+
+## Examples: main, interaction, and total effects
+
+Three separate tutorials each walk through one of `--effect`'s modes:
+
+- [Main effect (context-independent)](cli_main_effect.md)
+- [Interaction effect (context-dependent)](cli_interaction_effect.md)
+- [Total effect (main + interaction)](cli_total_effect.md)
+
+Take a look at the section below to understand parameter specification for Dynema.
+

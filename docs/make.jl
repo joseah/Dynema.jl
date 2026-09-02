@@ -23,6 +23,7 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Tutorials" => [
+            "Installing Julia" => "tutorials/installing_julia.md",
             "CLI: Command-line overview" => "tutorials/command_line.md",
             "CLI: Main effect (context-independent)" => "tutorials/cli_main_effect.md",
             "CLI: Interaction effect (context-dependent)" => "tutorials/cli_interaction_effect.md",

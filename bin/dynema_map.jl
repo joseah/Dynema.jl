@@ -47,10 +47,22 @@ Pkg.activate(CLI_DIR)
 # Always re-develop/instantiate (not just on first run): this environment is
 # shared with dynema_extract_geno.jl, so a dependency added for one script
 # must not be left unresolved when only the other has been run before. Both
-# calls are fast no-ops once the manifest already satisfies Project.toml.
-!isfile(joinpath(CLI_DIR, "Manifest.toml")) &&
-    println("First run detected: setting up the shared bin/ environment (this can take a few minutes)...")
-Pkg.develop(Pkg.PackageSpec(path = joinpath(CLI_DIR, "..")); io = devnull)
+# calls are fast no-ops once the manifest already satisfies Project.toml --
+# but not on a genuine first run: Pkg.develop's own dependency resolution
+# (and, on a brand-new Julia/juliaup install, updating the General registry
+# before it can resolve anything) can silently take several minutes. That
+# work is normally silenced below (`io = devnull`) so a repeat, already-set-up
+# run doesn't print noisy "Resolving package versions..." on every
+# invocation -- but on first run we deliberately let it print to stdout
+# instead, so the user sees real progress rather than nothing.
+first_run = !isfile(joinpath(CLI_DIR, "Manifest.toml"))
+if first_run
+    println("First run detected: setting up the shared bin/ environment " *
+            "(installing dependencies and, if needed, updating Julia's package " *
+            "registry -- this can take several minutes; please wait)...")
+    flush(stdout)
+end
+Pkg.develop(Pkg.PackageSpec(path = joinpath(CLI_DIR, "..")); io = first_run ? stdout : devnull)
 Pkg.instantiate()
 
 using ArgParse
