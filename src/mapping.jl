@@ -408,7 +408,17 @@ struct LocusWorkspace
     g0pos::Vector{Int}         # ...and their positions in X0/nullcols
     warm0::Vector{Float64}     # warm-start coefficients for the null fit
     warm0ready::Base.RefValue{Bool}
-    Wbuf::Matrix{Float64}      # n × k buffer for μ̂ .* X when recomputing H in full
+    Wbuf::Matrix{Float64}      # n × k buffer for μ̂ .* X (test H and IRLS Hessians)
+    # -- custom warm-started IRLS (see irls_poisson!) --
+    fitη::Vector{Float64}      # n: linear predictor scratch
+    fitμ::Vector{Float64}      # n: mean scratch
+    fitr::Vector{Float64}      # n: y - μ scratch
+    Hfit::Matrix{Float64}      # k × k Hessian scratch for the unrestricted fit
+    H0fit::Matrix{Float64}     # k0 × k0 Hessian scratch for the null fit
+    irls_betas::Base.RefValue{Bool}         # use custom IRLS for the unrestricted fit?
+    irls_betas_checked::Base.RefValue{Bool} # one-time self-check done?
+    irls_null::Base.RefValue{Bool}          # use custom IRLS for the null fit?
+    irls_null_checked::Base.RefValue{Bool}  # one-time self-check done?
     # -- direct CRVE score test (one-way clustering only) --
     clustid::Vector{Int}       # cluster code (1..G) per observation; empty if multiway
     clustshare::Vector{Float64} # each cluster's share of observations
@@ -479,7 +489,6 @@ function build_locus_workspace(f::FormulaTerm, design::AbstractDataFrame, μ̂0,
             X0 = Matrix{Float64}(undef, 0, 0)
             g0full = Int[]; g0pos = Int[]
             warm0 = Float64[]
-            Wbuf = Matrix{Float64}(undef, 0, 0)
         else
             # Per-variant null: allocate scratch buffers; the null model
             # matrix X0 is the subset of X's columns whose terms are not
@@ -496,8 +505,8 @@ function build_locus_workspace(f::FormulaTerm, design::AbstractDataFrame, μ̂0,
             g0full = [j for j in gcols if j in nullcols]
             g0pos = Int[findfirst(==(j), nullcols) for j in g0full]
             warm0 = zeros(Float64, length(nullcols))
-            Wbuf = Matrix{Float64}(undef, n, k)
         end
+        Wbuf = Matrix{Float64}(undef, n, k)
 
         # Cluster structures for the direct CRVE score test. Only one-way
         # clustering is implemented directly; with multiway clustering the
@@ -523,6 +532,10 @@ function build_locus_workspace(f::FormulaTerm, design::AbstractDataFrame, μ̂0,
                        Matrix{Float64}(undef, n, q), Matrix{Float64}(undef, q, k),
                        y, μ̂, resid, betas0, String.(coefnames(mf)), warm, Ref(shared),
                        shared, nullcols, X0, g0full, g0pos, warm0, Ref(false), Wbuf,
+                       Vector{Float64}(undef, n), Vector{Float64}(undef, n),
+                       Vector{Float64}(undef, n), Matrix{Float64}(undef, k, k),
+                       Matrix{Float64}(undef, length(nullcols), length(nullcols)),
+                       Ref(true), Ref(false), Ref(true), Ref(false),
                        clustid, clustshare, Sg, Ref(onecluster), Ref(false))
 
     catch err
@@ -545,6 +558,78 @@ function build_locus_workspace(f::FormulaTerm, design::AbstractDataFrame, μ̂0,
     end
 
     return ws
+
+end
+
+# Fused mean update and Poisson/log-link deviance: μ .= exp.(η), returning
+# 2 Σᵢ [yᵢ log(yᵢ/μᵢ) - (yᵢ - μᵢ)] (the yᵢ = 0 terms reduce to μᵢ).
+# Overflow/underflow in exp propagates to a non-finite deviance, which the
+# caller treats as a rejected step.
+function _poisson_dev!(μ::Vector{Float64}, η::Vector{Float64}, y::Vector{Float64})
+    dev = 0.0
+    @inbounds for i in eachindex(η)
+        m = exp(η[i])
+        μ[i] = m
+        yi = y[i]
+        dev += yi > 0 ? yi * log(yi / m) - (yi - m) : m
+    end
+    2 * dev
+end
+
+"""
+    irls_poisson!(β, X, y, η, μ, r, W, Hf; maxiter = 30, tol = 1e-9) -> Bool
+
+In-place Newton/IRLS for a Poisson GLM with log link (canonical, so Fisher
+scoring = Newton), warm-started from the incoming `β` and using only the
+caller's preallocated buffers: `η`, `μ`, `r` (length n) and `W` (n × k),
+`Hf` (k × k) scratch. Each iteration solves `X'diag(μ)X δ = X'(y - μ)` by
+Cholesky and step-halves on the deviance. Returns `true` on convergence
+(relative deviance change below `tol`), leaving the estimates in `β` and the
+matching means in `μ`; returns `false` (caller falls back to `GLM.fit`) on
+non-convergence, a failed Cholesky, or a collapsed line search.
+"""
+function irls_poisson!(β::Vector{Float64}, X::AbstractMatrix{Float64}, y::Vector{Float64},
+                       η::Vector{Float64}, μ::Vector{Float64}, r::Vector{Float64},
+                       W::AbstractMatrix{Float64}, Hf::AbstractMatrix{Float64};
+                       maxiter::Int = 30, tol::Float64 = 1e-9, minstepfac::Float64 = 1e-3)
+
+    k = size(X, 2)
+    g = Vector{Float64}(undef, k)
+    δ = Vector{Float64}(undef, k)
+    βtry = Vector{Float64}(undef, k)
+
+    mul!(η, X, β)
+    dev = _poisson_dev!(μ, η, y)
+    isfinite(dev) || return false
+
+    for _ in 1:maxiter
+
+        r .= y .- μ
+        mul!(g, transpose(X), r)
+        W .= μ .* X
+        mul!(Hf, transpose(X), W)
+        ch = cholesky!(Symmetric(Hf); check = false)
+        issuccess(ch) || return false
+        ldiv!(δ, ch, g)
+
+        # Step-halving on the deviance (accept non-increase up to roundoff)
+        devold = dev
+        f = 1.0
+        while true
+            @. βtry = β + f * δ
+            mul!(η, X, βtry)
+            dev = _poisson_dev!(μ, η, y)
+            (isfinite(dev) && dev <= devold * (1 + 1e-12) + 1e-12) && break
+            f /= 2
+            f < minstepfac && return false
+        end
+        β .= βtry
+
+        abs(devold - dev) < tol * (abs(dev) + 0.1) && return true
+
+    end
+
+    return false
 
 end
 
@@ -591,30 +676,45 @@ function map_variant_shared(ws::LocusWorkspace, variant::AbstractVector;
         else
 
             # Per-variant null (interaction tests): refit the restricted
-            # model directly on its patched model matrix, warm-starting IRLS
-            # from the previous variant's solution (cold for the first
-            # variant, or if a warm start ever fails to converge).
+            # model directly on its patched model matrix via the custom
+            # warm-started IRLS (previous variant's solution). The first
+            # variant is fit cold with GLM.fit -- which also seeds the warm
+            # start -- and the first warm IRLS solution is self-checked
+            # against a cold GLM.fit once; any IRLS failure falls back to
+            # GLM.fit for that variant.
             for (jf, j0) in zip(ws.g0full, ws.g0pos)
                 @views ws.X0[:, j0] .= ws.X[:, jf]
             end
-            m0 = if ws.warm0ready[]
-                try
-                    GLM.fit(GeneralizedLinearModel, ws.X0, ws.y, Poisson(), LogLink();
-                            start = copy(ws.warm0))
-                catch
-                    GLM.fit(GeneralizedLinearModel, ws.X0, ws.y, Poisson(), LogLink())
+            k0 = length(ws.nullcols)
+            W0 = view(ws.Wbuf, :, 1:k0)
+            β0hat = copy(ws.warm0)
+            ok = ws.warm0ready[] && ws.irls_null[] &&
+                 irls_poisson!(β0hat, ws.X0, ws.y, ws.fitη, ws.fitμ, ws.fitr, W0, ws.H0fit)
+
+            if ok && !ws.irls_null_checked[]
+                ws.irls_null_checked[] = true
+                β0ref = coef(GLM.fit(GeneralizedLinearModel, ws.X0, ws.y, Poisson(), LogLink()))
+                if !isapprox(β0hat, β0ref; rtol = 1e-4, atol = 1e-8)
+                    @warn "Custom IRLS failed its self-check against GLM.fit for the null fit; using GLM.fit"
+                    ws.irls_null[] = false
+                    ok = false
                 end
-            else
-                GLM.fit(GeneralizedLinearModel, ws.X0, ws.y, Poisson(), LogLink())
             end
-            copyto!(ws.warm0, coef(m0))
+
+            if ok
+                ws.μ̂ .= ws.fitμ
+            else
+                m0 = GLM.fit(GeneralizedLinearModel, ws.X0, ws.y, Poisson(), LogLink())
+                β0hat = coef(m0)
+                copyto!(ws.μ̂, fitted(m0))
+            end
+            copyto!(ws.warm0, β0hat)
             ws.warm0ready[] = true
 
-            copyto!(ws.μ̂, fitted(m0))
             ws.resid .= ws.y .- ws.μ̂
             ws.scores .= ws.resid .* ws.X
             fill!(ws.betas0, 0.0)
-            ws.betas0[ws.nullcols] .= coef(m0)
+            ws.betas0[ws.nullcols] .= β0hat
 
             # Full recompute of H = X'diag(μ̂)X: μ̂ changed, so every block did.
             ws.Wbuf .= ws.μ̂ .* ws.X
@@ -676,25 +776,33 @@ function map_variant_shared(ws::LocusWorkspace, variant::AbstractVector;
         # ------------------- Extract betas from unrestricted model ------------------ #
 
         if betas
-            # Fit on the already-patched model matrix directly (identical X
-            # and y to what glm(f, design, ...) would rebuild internally),
-            # warm-starting IRLS from the previous variant's solution (or,
-            # for the first variant, from the current null solution) --
+            # Unrestricted fit on the already-patched model matrix via the
+            # custom IRLS, warm-started from the previous variant's solution
+            # (or the current null solution for the first variant) --
             # neighbouring cis variants are in LD, so the optimum barely
-            # moves and 2-3 iterations typically suffice instead of ~6-8.
-            # If the warm start ever fails to converge, refit cold once; a
-            # failure of that too marks the variant failed as usual (via
-            # safe_map_variant_shared).
-            start_vec = ws.warmready[] ? ws.warm : ws.betas0
-            m = try
-                GLM.fit(GeneralizedLinearModel, ws.X, ws.y, Poisson(), LogLink();
-                        start = copy(start_vec))
-            catch
-                GLM.fit(GeneralizedLinearModel, ws.X, ws.y, Poisson(), LogLink())
+            # moves and 2-3 iterations typically suffice. The first custom
+            # solution is self-checked once against GLM.fit; any IRLS failure
+            # falls back to GLM.fit for that variant.
+            βhat = copy(ws.warmready[] ? ws.warm : ws.betas0)
+            ok = ws.irls_betas[] &&
+                 irls_poisson!(βhat, ws.X, ws.y, ws.fitη, ws.fitμ, ws.fitr, ws.Wbuf, ws.Hfit)
+
+            if ok && !ws.irls_betas_checked[]
+                ws.irls_betas_checked[] = true
+                βref = coef(GLM.fit(GeneralizedLinearModel, ws.X, ws.y, Poisson(), LogLink()))
+                if !isapprox(βhat, βref; rtol = 1e-4, atol = 1e-8)
+                    @warn "Custom IRLS failed its self-check against GLM.fit for the unrestricted fit; using GLM.fit"
+                    ws.irls_betas[] = false
+                    ok = false
+                end
             end
-            copyto!(ws.warm, coef(m))
+
+            if !ok
+                βhat = coef(GLM.fit(GeneralizedLinearModel, ws.X, ws.y, Poisson(), LogLink()))
+            end
+            copyto!(ws.warm, βhat)
             ws.warmready[] = true
-            res = hcat(res, DataFrame(transpose(coef(m)), ws.coefnames))
+            res = hcat(res, DataFrame(transpose(βhat), ws.coefnames))
         end
 
         # ---------------- Return bootstrap distributions if required ---------------- #
