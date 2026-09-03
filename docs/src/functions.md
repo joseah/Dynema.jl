@@ -71,4 +71,5 @@ through either CLI wrapper.
 extract_geno_dataframe
 extract_gene_expression
 resolve_mtx_triplet
+prepare_gene_expression
 ```

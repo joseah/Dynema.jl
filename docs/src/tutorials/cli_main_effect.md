@@ -40,10 +40,9 @@ input=demo_data
 
 ./bin/dynema-map \
   --expr-prefix "$input/expr" \
-  --gene CTSS \
   --meta "$input/meta.tsv" \
   --vcf "$input/genotypes.vcf.gz" \
-  --tss-file "$input/tss.tsv" \
+  --bed "$input/CTSS.bed" \
   --window 500000 \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
   --contexts C1,C2,C3 \
@@ -56,8 +55,7 @@ input=demo_data
 
 > This is the command-line equivalent of building the formula
 > `@formula(0 ~ 1 + G + C1 + C2 + C3 + <covariates...>)` by hand and calling
-> [`map_locus`](@ref) with `termtest = "G"` -- see [Main
-> effect](main_effect.md).
+> [`map_locus`](@ref) with `termtest = "G"`.
 
 To also test the `G & context` interaction terms on the same data instead,
 see [Interaction effect](cli_interaction_effect.md) or [Total

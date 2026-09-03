@@ -9,9 +9,9 @@ whether constant across cells or context-dependent.
 
 These commands run end to end against a small, fully public demo dataset
 hosted in the [Dynema_datasets](https://github.com/joseah/Dynema_datasets)
-repository -- built from the same simulated dataset used in the Julia API
-tutorials (same donors/cells/contexts, gene renamed to `CTSS`, plus a few
-synthetic covariates layered on top). Download it once:
+repository -- a fully simulated dataset (100 donors, ~4000 cells, 100
+variants, gene `CTSS`, three cell-state contexts, plus a few synthetic
+covariates). Download it once:
 
 ```bash
 input=demo_data
@@ -34,10 +34,9 @@ input=demo_data
 
 ./bin/dynema-map \
   --expr-prefix "$input/expr" \
-  --gene CTSS \
   --meta "$input/meta.tsv" \
   --vcf "$input/genotypes.vcf.gz" \
-  --tss-file "$input/tss.tsv" \
+  --bed "$input/CTSS.bed" \
   --window 500000 \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
   --contexts C1,C2,C3 \

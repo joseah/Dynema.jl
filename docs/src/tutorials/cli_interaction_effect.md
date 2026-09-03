@@ -32,14 +32,13 @@ input=demo_data
 
 ./bin/dynema-map \
   --expr-prefix "$input/expr" \
-  --gene CTSS \
   --meta "$input/meta.tsv" \
   --vcf "$input/genotypes.vcf.gz" \
-  --tss-file "$input/tss.tsv" \
+  --bed "$input/CTSS.bed" \
   --window 500000 \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
   --contexts C1,C2,C3 \
-  --interaction-with C1,C2,C3 \ 
+  --interaction-with C1,C2,C3 \
   --donor-col donor_id \
   --cell-id-col cell_id \
   --effect interaction \
@@ -53,9 +52,7 @@ To test a single context's interaction instead (e.g. just `G & C1`), pass
 This is the command-line equivalent of building the formula
 `@formula(0 ~ 1 + G + C1 + C2 + C3 + <covariates...> + G & C1 + G & C2 + G & C3)`
 by hand and calling [`map_locus`](@ref) with
-`termtest = ["G & C1", "G & C2", "G & C3"]` -- see [Interaction
-effect](interaction.md) for what single- vs. multi-context interaction
-terms mean and how to interpret them.
+`termtest = ["G & C1", "G & C2", "G & C3"]`.
 
 To also test `G`'s main effect alongside these interactions on the same
 data, see [Total effect](cli_total_effect.md); for just the main effect on

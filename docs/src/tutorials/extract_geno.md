@@ -13,10 +13,15 @@ reuse across multiple runs on the same gene or direct inspection/QC:
 ```bash
 ./bin/dynema-extract-geno \
   --vcf genotypes.vcf.gz \
-  --chr chr17 --tss 43044295 --window 250000 \
+  --bed BRCA1.bed --window 250000 \
   --field auto \
   --out BRCA1_geno.tsv
 ```
+
+The single-gene bed-like file (one data row; columns chr, start, end, gene,
+strand) specifies which gene's cis-window to extract; the TSS is derived the
+same way FastQTL does it: the gene's start position on the plus strand, its
+end position on the minus strand.
 
 The resulting file is in exactly the shape `dynema-map --geno` expects. See
 `./bin/dynema-extract-geno --help` for sample-id remapping (`--samples`)

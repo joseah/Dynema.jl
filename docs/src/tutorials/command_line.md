@@ -11,6 +11,10 @@ self-contained command-line tool:
   more genetic variant -- reads gene expression, single-cell metadata, 
   and genotypes, runs [`map_locus`](@ref), and writes a
   summary statistics table.
+- **`dynema-prepare-expr`** (optional, run once per expression matrix):
+  builds a gene-major index (`.dgx`) next to a Matrix Market export, after
+  which `dynema-map` loads any single gene in milliseconds instead of
+  scanning the whole multi-GB matrix per run.
 
 This script bootstraps its own Julia environment automatically the first
 time it's run (installing `Dynema` plus a handful of CLI-only
@@ -32,16 +36,33 @@ instead: `julia --project=bin bin/dynema_map.jl [options]`.
 
 `dynema-map` inputs:
 
-- **Gene expression**: this can be provided as Matrix Market format
-  (`PREFIX.mtx`, `PREFIX.features`, `PREFIX.barcodes`–— commonly exported by 
-  Seurat/scanpy/10x pipelines), or a plain text file (TSV/CSV with a cell-id column 
-  and one column per gene).
-- **Genotypes**: either a VCF file (tabix-indexed) to extract the tested gene's cis-window 
-  variants,  or a plain text file (a pre-extracted donor-level dosage table: one donor-id
-  column, one column per variant).
+- **Gene expression** (recommended: Matrix Market): the standard sparse export
+  (`PREFIX.mtx`, `PREFIX.features`, `PREFIX.barcodes` -- as produced by
+  Seurat/scanpy/10x pipelines), containing raw counts. Run `dynema-prepare-expr`
+  on it once to build a `.dgx` index, and every later `dynema-map` run loads its
+  gene in milliseconds. A plain text file (TSV/CSV with a cell-id column and one
+  column per gene) is also accepted as an alternative for small or pre-extracted
+  data.
+- **Genotypes** (recommended: VCF): a bgzipped, tabix-indexed VCF with genotype
+  dosages, from which the tested gene's cis-window variants are extracted in
+  about a second. A plain text file (a pre-extracted donor-level dosage table:
+  one donor-id column, one column per variant -- e.g. the output of
+  `dynema-extract-geno`) is also accepted.
+- **The gene to map**: a single-gene bed-like plain text file (`--bed`) with
+  columns chr, start, end, gene, strand and exactly one data row. It serves
+  two purposes at once: its gene column (a name/symbol or gene id) specifies
+  *what* to map, and its positions/strand give the TSS, derived
+  FastQTL-style -- the gene's start position on the plus strand, its end
+  position on the minus strand. (One small file per gene, not a full GTF --
+  reading it stays instant.)
 - **Metadata**: plain text file with cell id, donor id, cell-state
   contexts, and any donor or single-cell covariates, one row per cell.
 - **Type of eQTL effect**: either main, interaction, or total.
+
+The recommended route is Matrix Market expression (indexed once with
+`dynema-prepare-expr`) plus a genome-wide VCF and a bed-like gene annotation:
+all inputs are then compressed, indexed, and random-access, so per-gene runs
+pay seconds of I/O, not minutes.
 
 ## Running Dynema with VCF and a Matrix Market Format matrix
 
@@ -56,10 +77,9 @@ Here's a simple example just to illustrate the parameter usage (do not run):
 ```bash
 ./bin/dynema-map \
   --expr-prefix "$input/expr" \
-  --gene CTSS \
   --meta "$input/meta.tsv" \
   --vcf "$input/genotypes.vcf.gz" \
-  --tss-file "$input/tss.tsv" \
+  --bed "$input/CTSS.bed" \
   --window 500000 \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
   --contexts C1,C2,C3 \
@@ -73,23 +93,30 @@ Here's a simple example just to illustrate the parameter usage (do not run):
 Arguments:
 
 - `--expr-prefix` specifies the basename of the matrix market files (e.g. [expr].mtx.gz, 
-  [expr].barcodes.gz, [expr].features.gz)
-- `--gene`: The name of the gene tested. The name provided is used to extract its
-  expression from the expressin file inputs and must match a gene in [expr].features.gz. 
-  This step might take some minutes the larger the expression data is. Expression data
-  can be split by gene or in batches to load faster. Otherwise, we can use a plain-text file
-  as shown in the next section.
+  [expr].barcodes.gz, [expr].features.gz). If a [expr].dgx index built by
+  `dynema-prepare-expr` sits next to them, the gene loads from it in
+  milliseconds; otherwise the matrix is scanned once per run (minutes for
+  multi-GB files -- index it!).
 - `--vcf`: VCF file (*.vcf or *.vcf.gx) with **genotype dosages, not hard calls.** 
   The VCF must already carry per-sample genotype dosages (`DS`) and/or genotype 
   probabilities (`GP`) -- as produced by standard imputation pipelines (Minimac, IMPUTE2/5,
   Beagle, etc.). `--field auto` (the default) prefers `GP` over `DS` when a
   variant has both; hard-call genotypes (`GT`) are never read. 
   Must be accompanied by a tabix index file (*.tbi).
-- `--tss-file`: TSV/CSV gene-to-TSS lookup table (columns `gene_id`, `chr`,
-  `tss` position) to look up `--gene`'s chromosome and transcription start site from --
-  a cis-window is built around the looked-up position. Alternative to passing
-  `--chr`/`--tss` directly.
-- `--window`: *cis* region. By default 1Mb.
+- `--bed`: single-gene bed-like file (plain or gzipped) specifying the gene
+  to map: exactly one data row with columns chr, start, end, gene, strand (a
+  standard 6-column BED with a score column also works; header/`#` lines are
+  skipped). Its gene column -- a gene name/symbol (`CTSS`) or a gene id
+  (`ENSG00000163131`) -- names the gene: with a single-column features file
+  (e.g. a Seurat export) it must match that column exactly; with a 10x
+  features file (gene_id, gene_name, modality) it is searched against
+  gene_name (column 2) first and, failing that, against gene_id (column 1) --
+  no match is an error (Ensembl id version suffixes are ignored). The TSS is
+  derived the same way FastQTL does: the gene's start position on the plus
+  strand, its end position on the minus strand. The annotation's chromosome
+  naming must match the VCF's (e.g. `chr1` vs `1`). A cis-window is built
+  around the derived TSS.
+- `--window`: *cis* region half-width in bp around the TSS. By default 500000 (0.5 Mb).
 - `--meta`: plain text file with cell id, donor id, cell-state contexts, and any donor or 
   single-cell covariates, one row per cell.
 - `covariates`: list of covariates. Must be comma-separated and should match column names in 
@@ -105,20 +132,22 @@ effect is assessed.
 - `--out`: output file with summary statistics.
 
 
-## Running Dynema plain text files
+## Alternative: plain text files
 
-If you already have gene expression and genotypes as pre-extracted plain
-TSV/CSV tables, pass them with
-`--expr`/`--geno` instead of `--expr-prefix`/`--vcf` -- everything else
-about `--meta`/`--covariates`/`--contexts`/`--effect`/`--interaction-with`
-works exactly the same way.
+For small datasets, quick checks, or genotypes pre-extracted with
+`dynema-extract-geno`, gene expression and genotypes can also be passed as
+plain TSV/CSV tables with `--expr`/`--geno` instead of
+`--expr-prefix`/`--vcf` (no `--bed` needed: a pre-extracted genotype table
+already fixes its own variants). Everything else about
+`--meta`/`--covariates`/`--contexts`/`--effect`/`--interaction-with` works
+exactly the same way. For full-size data, prefer the indexed Matrix Market +
+VCF route above.
 
 Here's a simple example just to illustrate the parameter usage (do not run):
 
 ```bash
 ./bin/dynema-map \
   --expr "$input/expr.tsv" \
-  --gene CTSS \
   --meta "$input/meta.tsv" \
   --geno "$input/genotypes.tsv" \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \

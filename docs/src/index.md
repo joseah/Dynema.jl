@@ -8,7 +8,7 @@ See our pre-print using this [link](https://www.biorxiv.org/content/10.64898/202
 
 *Dynema* (Dynamic eQTL mapping in single cells) is a fast and calibrated method to map eQTL effects genome-wide at true single-cell resolution. We argue that an eQTL effect is different for each individual cell. Dynema can decompose such effects into: i) context-independent (main), ii) context-dependent (interaction), and iii) total (main and interaction).
 
-**No Julia coding required:** Dynema ships a command-line interface that runs the full mapping workflow -- straight from a VCF and a Matrix Market count matrix (or plain TSV/CSV files) to a summary statistics table -- entirely from the terminal. See [CLI: Command-line overview](tutorials/command_line.md) to get started. A Julia API is also available for anyone who wants to call Dynema directly from their own scripts or pipelines.
+**No Julia coding required:** Dynema ships a command-line interface that runs the full mapping workflow -- straight from a VCF and a Matrix Market count matrix (or plain TSV/CSV files) to a summary statistics table -- entirely from the terminal. See [CLI: Command-line overview](tutorials/command_line.md) to get started. A Julia API is also available for anyone who wants to call Dynema directly from their own scripts or pipelines -- see the [API Reference](functions.md).
 
 ## Getting started
 
@@ -22,16 +22,8 @@ See our pre-print using this [link](https://www.biorxiv.org/content/10.64898/202
   [CLI: Total effect](tutorials/cli_total_effect.md) each run one of the
   single-cell eQTL effects using a small demo dataset, entirely from the command 
   line.
-- [Julia API: Download demo data](tutorials/simulation.md) downloads the
-  same demo dataset as the CLI tutorials and prepares it for mapping from
-  Julia directly.
-- [Julia API: Main effect](tutorials/main_effect.md) shows how to test a
-  context-independent (main) eQTL effect.
-- [Julia API: Interaction effect](tutorials/interaction.md) shows how to
-  test a genotype × cell-state interaction term, single- or multi-context.
-- [Julia API: Total effect](tutorials/total_effect.md) shows how to test a
-  main effect and its interaction term(s) together in one joint test.
-- [API Reference](functions.md) documents every exported function.
+- [API Reference](functions.md) documents every exported function, for
+  anyone calling Dynema directly from Julia.
 
 
 ## Getting help
