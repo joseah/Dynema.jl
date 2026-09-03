@@ -1,29 +1,44 @@
 
+"""
+    pass_counts(stat, boot, stattype) -> (c1, c2)
+
+Allocation-free tail counts of `stat` against a bootstrap distribution chunk:
+for "z", the (greater, less) counts (whose running sums stay additive across
+chunks, unlike their min); for "χ²", `(count(boot .>= stat), 0)`.
+"""
+function pass_counts(stat, boot, stattype)
+    if stattype == "z"
+        (count(b -> stat > b, boot), count(b -> stat < b, boot))
+    else
+        (count(b -> b >= stat, boot), 0)
+    end
+end
+
+# Final tail count from accumulated (c1, c2) totals
+combine_pass(c1, c2, stattype) = stattype == "z" ? min(c1, c2) : c1
+
 function pass(stat, boot, stattype)
+    c1, c2 = pass_counts(stat, boot, stattype)
+    combine_pass(c1, c2, stattype)
+end
+
+# From a precomputed tail count and total replication count
+function compute_pvalue(pass_obs::Integer, nboot::Integer, stattype)
 
     if stattype == "z"
-        minimum([sum(stat .> boot), sum(stat .< boot)])
+
+        pass_obs == 0 ? 2 / (nboot + 1) : 2 * pass_obs / nboot
+
     elseif stattype == "χ²"
-        sum(boot .>= stat)
+
+        pass_obs == 0 ? 1 / (nboot + 1) : pass_obs / nboot
+
     end
 
 end
 
-function compute_pvalue(stat, boot, stattype)
-
-    pass_obs = pass(stat, boot, stattype)
-
-    if stattype == "z"
-
-        pass_obs == 0 ? 2 / (length(boot) + 1) : 2 * pass_obs / length(boot)
-
-    elseif stattype == "χ²"
-
-        pass_obs == 0 ? 1 / (length(boot) + 1) : pass_obs / length(boot)
-
-    end
-
-end
+compute_pvalue(stat, boot, stattype) =
+    compute_pvalue(pass(stat, boot, stattype), length(boot), stattype)
 
 
 """

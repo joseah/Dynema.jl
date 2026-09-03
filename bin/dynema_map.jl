@@ -65,6 +65,32 @@ end
 Pkg.develop(Pkg.PackageSpec(path = joinpath(CLI_DIR, "..")); io = first_run ? stdout : devnull)
 Pkg.instantiate()
 
+# --workers N must take effect *before* `using Dynema` below, so that the
+# package is automatically loaded on the new worker processes too. It is
+# therefore scanned from the raw ARGS here; ArgParse still declares it for
+# --help/validation. Equivalent to launching with `julia -p N`.
+using Distributed
+using LinearAlgebra: BLAS
+let i = findfirst(==("--workers"), ARGS)
+    if i !== nothing && i < length(ARGS)
+        nw = tryparse(Int, ARGS[i + 1])
+        if nw !== nothing && nw > 0 && nworkers() < nw
+            println("Starting $nw worker process(es)...")
+            flush(stdout)
+            addprocs(nw - (nworkers() > 1 ? nworkers() : 0); exeflags = "--project=$CLI_DIR")
+            # Divide the machine's BLAS threads across the workers: left at
+            # its default, every worker's BLAS assumes it owns all cores, and
+            # nw competing thread pools oversubscribe the CPU during the
+            # GEMM/IRLS steps.
+            blas_threads = max(1, Sys.CPU_THREADS ÷ nworkers())
+            @everywhere workers() begin
+                using LinearAlgebra: BLAS
+                BLAS.set_num_threads($blas_threads)
+            end
+        end
+    end
+end
+
 using ArgParse
 using CSV
 using DataFrames
@@ -173,8 +199,12 @@ function parse_commandline()
             help = "Skip fitting the unrestricted model per variant and omit its coefficient estimates from the output. The score test does not need those estimates -- they are only reported for convenience -- so this substantially reduces per-variant fitting work."
             action = :store_true
         "--parallel"
-            help = "Distribute variants across worker processes with Distributed.jl (workers must already be started, e.g. via `julia -p 4`)."
+            help = "Distribute variants across worker processes with Distributed.jl. Use with --workers N, or start workers yourself (e.g. `julia -p 4 --project=bin bin/dynema_map.jl ...`)."
             action = :store_true
+        "--workers"
+            help = "Number of local worker processes to start for parallel mapping. Implies --parallel."
+            arg_type = Int
+            default = 0
         "--positions"
             help = "Optional TSV/CSV with two columns (variant, position) giving genomic positions to attach to the output."
             default = nothing
@@ -491,7 +521,7 @@ function run_map(args; term_size = displaysize(stdout))
         meta = meta,
         groups = meta[:, donor_col],
         termtest = termtest,
-        parallel = args["parallel"],
+        parallel = args["parallel"] || args["workers"] > 0,
         betas = !args["no-betas"],
         boot = args["boot"],
         B = B,

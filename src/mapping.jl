@@ -27,7 +27,12 @@ specified (e.g. donor structure). For example ["donor1", "donor2", "donor1", "do
 
 # Optional arguments
 
-- `parallel`: Runs in parallel via `Distrbuted.jl` with `pmap`
+- `parallel`: Distributes contiguous blocks of variants across worker processes
+(`Distributed.jl`; start workers first, e.g. `julia -p 4`). Each worker builds its
+own locus workspace, so the fast path applies in parallel too. Warm-start chains
+restart at block boundaries, so interaction-test results are reproducible for a
+fixed worker count but can differ at IRLS convergence tolerance (~1e-7) across
+worker counts or vs. a serial run
 - `H0`: Null hypothesis value. By default `0`
 
 Testing always uses a cluster-robust (CRVE) score/Lagrange-multiplier test at
@@ -138,35 +143,49 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
     f0 = FormulaTerm(f.lhs, f.rhs[.!v0])
     null_is_shared = !(:G in StatsModels.termvars(f0.rhs))
     m0shared = null_is_shared ? glm(f0, design, Poisson(), LogLink()) : nothing
+    # Only the fitted values and coefficients of the shared null are needed
+    # downstream -- extracted here so the (large) fitted model object never
+    # has to be serialized to parallel workers.
+    μ̂0    = m0shared === nothing ? nothing : fitted(m0shared)
+    beta0 = m0shared === nothing ? nothing : coef(m0shared)
 
-    # In the serial case, a per-locus workspace avoids all per-variant
-    # DataFrame/model-matrix machinery: the model matrix X differs between
-    # variants only in its genotype-dependent column(s), so it is built once
-    # and only those columns are updated in place per variant (see
-    # build_locus_workspace). With a shared null (main/total), scores and
-    # X'diag(μ̂)X are also only column-patched; with G in the null
-    # (interaction), the null is refit per variant -- but directly on the
-    # patched matrix with warm starts, instead of through the formula
-    # interface. Skipped under `parallel`, where a mutable shared workspace
-    # cannot be used across worker processes, and automatically skipped
-    # (nothing) when the formula's genotype terms are not plain linear-in-G
-    # terms or the workspace fails its self-check.
-    ws = (!parallel && size(geno, 2) > 0) ?
-        build_locus_workspace(f, design, m0shared, v0, geno[:, 1], groups) : nothing
+    # A per-locus workspace avoids all per-variant DataFrame/model-matrix
+    # machinery: the model matrix X differs between variants only in its
+    # genotype-dependent column(s), so it is built once and only those
+    # columns are updated in place per variant (see build_locus_workspace).
+    # With a shared null (main/total), scores and X'diag(μ̂)X are also only
+    # column-patched; with G in the null (interaction), the null is refit per
+    # variant -- but directly on the patched matrix with warm starts, instead
+    # of through the formula interface. Under `parallel`, each worker builds
+    # its own private workspace for a contiguous block of variants (see
+    # map_chunk); serially, one workspace is built here. Automatically
+    # skipped (nothing) when the formula's genotype terms are not plain
+    # linear-in-G terms or the workspace fails its self-check.
+    use_parallel = parallel && nworkers() > 1
+    ws = (!use_parallel && size(geno, 2) > 0) ?
+        build_locus_workspace(f, design, μ̂0, beta0, v0, geno[:, 1], groups) : nothing
 
     # ---------- Run association for each variant in input genotype data --------- #
 
     t0 = time()
 
-    results = if parallel
+    results = if use_parallel
 
-        @showprogress pmap(1:size(geno, 2)) do i
+        # Contiguous blocks, one per worker: the workspace (and its warm-start
+        # chain) lives on the worker, and the closure below -- including the
+        # large `design`/`geno` captures -- is serialized once per worker via
+        # the CachingPool instead of once per variant.
+        nv = size(geno, 2)
+        nchunks = min(nworkers(), nv)
+        bounds = round.(Int, range(0, nv; length = nchunks + 1))
+        chunks = [bounds[c]+1:bounds[c+1] for c in 1:nchunks if bounds[c+1] > bounds[c]]
 
-            safe_map_variant(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r,
-                    boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322),
-                    m0shared = m0shared, betas = betas)
-
+        chunk_results = @showprogress pmap(CachingPool(workers()), chunks) do idxs
+            map_chunk(idxs; f = f, design = design, μ̂0 = μ̂0, beta0 = beta0, v0 = v0,
+                      groups = groups, geno = geno, R = R, r = r, boot = boot, B = B,
+                      ptype = ptype, rboot = rboot, betas = betas)
         end
+        reduce(vcat, chunk_results)
 
     elseif ws !== nothing
         @showprogress map(1:size(geno, 2)) do i
@@ -181,7 +200,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
             safe_map_variant(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r,
                     boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322),
-                    m0shared = m0shared, betas = betas)
+                    μ̂0 = μ̂0, beta0 = beta0, betas = betas)
         end
 
     end
@@ -203,7 +222,10 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
     end
 
 
-    summ_stats = rboot ? reduce(vcat, [first(x) for x in results]) : vcat(results...)
+    # reduce(vcat, ...) hits DataFrames' specialized fast path; splatting
+    # (vcat(results...)) recompiles for every result count and is slow for
+    # loci with many variants.
+    summ_stats = rboot ? reduce(vcat, [first(x) for x in results]) : reduce(vcat, results)
     insertcols!(summ_stats, 1, :variant => variant_names)
     
     # ---------------- Collect bootstrap distribution if necessary --------------- #
@@ -227,7 +249,7 @@ function map_variant(variant::AbstractVector; f::FormulaTerm, d::AbstractDataFra
                     boot::Bool = true,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000],
                     ptype::Symbol = :equaltail, rboot = true, rng::AbstractRNG = StableRNG(66),
-                    m0shared = nothing, betas::Bool = true)
+                    μ̂0 = nothing, beta0 = nothing, betas::Bool = true)
 
         # ------------- Add expression and genotype data to model matrix ------------- #
 
@@ -254,25 +276,24 @@ function map_variant(variant::AbstractVector; f::FormulaTerm, d::AbstractDataFra
 
         # ------------------------------ Fit null model ------------------------------- #
 
-        # Impose null on model: reuse the locus-shared restricted fit when
-        # provided (main/total effect tests -- the null has no
-        # genotype-dependent terms, so it is identical for every variant);
-        # otherwise fit it for this variant.
+        # Impose null on model: reuse the locus-shared restricted fit's
+        # fitted values/coefficients when provided (main/total effect tests
+        # -- the null has no genotype-dependent terms, so it is identical for
+        # every variant); otherwise fit it for this variant.
         v = vec(any(R, dims=1))
-        m0 = if m0shared === nothing
+        μ̂, betas0 = if μ̂0 === nothing
             f0 = FormulaTerm(f.lhs, f.rhs[.!vec(v)])
-            glm(f0, design, Poisson(), LogLink())
+            m0 = glm(f0, design, Poisson(), LogLink())
+            fitted(m0), coef(m0)
         else
-            m0shared
+            μ̂0, beta0
         end
 
         # Calculate betas and variance-covariance matrix of the unrestricted model
         # at the solution of the restricted model.
         # Scores will be calculated the same way too
-        betas0 = coef(m0)
         betas_vec = insert_zeros(vec(v), betas0)
 
-        μ̂ = fitted(m0)
         A = X' * (Diagonal(μ̂) * X) \ I
 
         # ------------------------------- Build scores ------------------------------- #
@@ -410,17 +431,18 @@ _linear_in_G(t::InteractionTerm) =
 _linear_in_G(t) = false
 
 """
-    build_locus_workspace(f, design, m0, v, g1, groups) -> Union{Nothing, LocusWorkspace}
+    build_locus_workspace(f, design, μ̂0, beta0, v, g1, groups) -> Union{Nothing, LocusWorkspace}
 
 Builds the [`LocusWorkspace`](@ref) for the fast path -- in shared-null mode
-when `m0` is the locus-shared restricted fit, or in per-variant-null mode
-when `m0 === nothing` (interaction tests). Returns `nothing` (falling back to
-the generic per-variant path) when any genotype term in `f` is not linear in
-`G`, when construction fails, or when the patched model matrix does not
-reproduce a from-scratch build for the first variant `g1` (numeric
-self-check). Adds/overwrites a `:G` column on `design`.
+when `μ̂0`/`beta0` are the locus-shared restricted fit's fitted values and
+coefficients, or in per-variant-null mode when they are `nothing`
+(interaction tests). Returns `nothing` (falling back to the generic
+per-variant path) when any genotype term in `f` is not linear in `G`, when
+construction fails, or when the patched model matrix does not reproduce a
+from-scratch build for the first variant `g1` (numeric self-check).
+Adds/overwrites a `:G` column on `design`.
 """
-function build_locus_workspace(f::FormulaTerm, design::AbstractDataFrame, m0,
+function build_locus_workspace(f::FormulaTerm, design::AbstractDataFrame, μ̂0, beta0,
                                v::AbstractVector{Bool}, g1::AbstractVector, groups::Matrix)
 
     rhs_terms = f.rhs isa Tuple ? collect(f.rhs) : [f.rhs]
@@ -442,16 +464,16 @@ function build_locus_workspace(f::FormulaTerm, design::AbstractDataFrame, m0,
         M = X[:, gcols]
 
         n, k, q = size(X, 1), size(X, 2), length(gcols)
-        shared = m0 !== nothing
+        shared = μ̂0 !== nothing
 
         if shared
-            μ̂ = fitted(m0)
+            μ̂ = μ̂0
             resid = y .- μ̂
             scores = resid .* X
             # Same expression as the generic path, so the fixed (covariate)
             # block of H is numerically identical to a per-variant computation.
             H = X' * (Diagonal(μ̂) * X)
-            betas0 = insert_zeros(v, coef(m0))
+            betas0 = insert_zeros(v, beta0)
             warm = copy(betas0)
             nullcols = Int[]
             X0 = Matrix{Float64}(undef, 0, 0)
@@ -694,4 +716,39 @@ function safe_map_variant_shared(ws, variant; kwargs...)
         @warn "map_variant failed for a variant" exception = (err, bt)
         nothing
     end
+end
+
+
+"""
+    map_chunk(idxs; ...)
+
+Processes a contiguous block of variants on one worker process (or serially,
+if called directly): builds a private [`LocusWorkspace`](@ref) for the block
+and runs [`map_variant_shared`](@ref) per variant, falling back to the
+generic [`map_variant`](@ref) path if the workspace cannot be built. A
+worker's in-place workspace mutation is safe because each worker holds its
+own deserialized copy and `pmap` never runs two tasks concurrently on one
+worker; keeping blocks contiguous also keeps each worker's warm-start chain
+deterministic for a fixed worker count.
+"""
+function map_chunk(idxs::AbstractUnitRange; f::FormulaTerm, design::AbstractDataFrame,
+                   μ̂0, beta0, v0::AbstractVector{Bool}, groups::Matrix, geno,
+                   R::BitMatrix, r::Vector{Float64}, boot::Bool, B::Vector{Int64},
+                   ptype::Symbol, rboot::Bool, betas::Bool)
+
+    ws = isempty(idxs) ? nothing :
+        build_locus_workspace(f, design, μ̂0, beta0, v0, geno[:, first(idxs)], groups)
+
+    map(idxs) do i
+        if ws === nothing
+            safe_map_variant(geno[:, i]; f = f, d = design, groups = groups, R = R, r = r,
+                    boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322),
+                    μ̂0 = μ̂0, beta0 = beta0, betas = betas)
+        else
+            safe_map_variant_shared(ws, geno[:, i]; groups = groups, R = R, r = r,
+                    boot = boot, B = B, ptype = ptype, rboot = rboot,
+                    rng = StableRNG(1322), betas = betas)
+        end
+    end
+
 end
