@@ -169,8 +169,8 @@ function parse_commandline()
             arg_type = String
             default = "equaltail"
             range_tester = x -> x in ("equaltail", "symmetric")
-        "--wald"
-            help = "Use a Wald test at the unrestricted MLE instead of the default Lagrange-multiplier/score test."
+        "--no-betas"
+            help = "Skip fitting the unrestricted model per variant and omit its coefficient estimates from the output. The score test does not need those estimates -- they are only reported for convenience -- so this substantially reduces per-variant fitting work."
             action = :store_true
         "--parallel"
             help = "Distribute variants across worker processes with Distributed.jl (workers must already be started, e.g. via `julia -p 4`)."
@@ -492,7 +492,7 @@ function run_map(args; term_size = displaysize(stdout))
         groups = meta[:, donor_col],
         termtest = termtest,
         parallel = args["parallel"],
-        imposenull = !args["wald"],
+        betas = !args["no-betas"],
         boot = args["boot"],
         B = B,
         ptype = ptype,
