@@ -43,6 +43,12 @@ end
 #   - betas_filled[i] = betas0[j] if !R[i]
 #   - betas_filled[i] = 0       if R[i]
 
+# Ensembl-style ids carry annotation-version suffixes (ENSG00000163131.10) in
+# some sources (e.g. GTF-derived annotations) but not others (e.g. 10x
+# features files); gene-identifier comparisons ignore them.
+stripver(x::AbstractString) = startswith(x, "ENS") ? String(first(split(x, '.'))) : String(x)
+
+
 function insert_zeros(R::AbstractVector{Bool}, betas0::AbstractVector)
     betas_filled = similar(R, eltype(betas0))  # create output vector of correct type
     idx_betas0 = 1

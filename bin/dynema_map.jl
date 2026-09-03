@@ -27,7 +27,7 @@
 #
 # or extracting genotypes on the fly from a tabix-indexed VCF:
 #   julia --project=<this-dir> dynema_map.jl --vcf genotypes.vcf.gz \
-#       --gene BRCA1 --tss-file genes.tsv --window 250000 [options]
+#       --bed BRCA1.bed --window 250000 [options]
 #
 # or, via the bundled launcher (auto-activates this environment):
 #   ./dynema-map [options]
@@ -112,30 +112,24 @@ function parse_commandline()
 
     @add_arg_table! s begin
         "--expr"
-            help = "TSV/CSV file with single-cell gene expression counts. Must contain a cell-id column and one column per gene (or a single expression column if --gene is omitted). Exactly one of --expr or --expr-prefix must be given."
+            help = "TSV/CSV file with single-cell gene expression counts. Must contain a cell-id column and one column per gene (or a single expression column if no --bed is given). Exactly one of --expr or --expr-prefix must be given."
             arg_type = String
         "--expr-prefix"
-            help = "Filename prefix of a Matrix Market gene expression export (genes as rows, cells as columns): resolves to <prefix>.mtx, <prefix>.features, <prefix>.barcodes, each tried gzipped first then plain (e.g. 'expr_0.05' -> expr_0.05.mtx.gz/.features.gz/.barcodes.gz). Streamed for just the tested gene, never loaded in full. Requires --gene. Exactly one of --expr or --expr-prefix must be given."
-            default = nothing
-        "--gene"
-            help = "Name of the gene to test: the --expr column to use (required if --expr has more than one non-id column), the row to look up in --expr-prefix's features file (required with --expr-prefix), and/or the id to look up in --tss-file for --vcf (only used, and only required, if --tss-file is given instead of --chr/--tss directly)."
+            help = "Filename prefix of a Matrix Market gene expression export (genes as rows, cells as columns): resolves to <prefix>.mtx, <prefix>.features, <prefix>.barcodes, each tried gzipped first then plain (e.g. 'expr_0.05' -> expr_0.05.mtx.gz/.features.gz/.barcodes.gz). If a <prefix>.dgx index built by dynema-prepare-expr exists, the gene loads from it in milliseconds; otherwise the matrix is streamed once for the tested gene, never loaded in full. Requires --bed (whose gene column names the gene to extract). Exactly one of --expr or --expr-prefix must be given."
             default = nothing
         "--geno"
             help = "TSV/CSV file with donor-level genotype dosages: one donor-id column plus one column per variant. Exactly one of --geno or --vcf must be given."
             arg_type = String
         "--vcf"
-            help = "Bgzipped, tabix-indexed VCF (.vcf.gz) to extract the gene's cis-window genotypes from on the fly, instead of a pre-extracted --geno file. Uses --gene (or --chr/--tss) for the TSS, plus --tss-file/--window/--field/--samples/--maf/--max-missing below. Exactly one of --geno or --vcf must be given."
+            help = "Bgzipped, tabix-indexed VCF (.vcf.gz) to extract the gene's cis-window genotypes from on the fly, instead of a pre-extracted --geno file. Requires --bed to locate the cis-window, plus --window/--field/--samples/--maf/--max-missing below. Exactly one of --geno or --vcf must be given."
             default = nothing
-        "--tss-file"
-            help = "(--vcf only) TSV/CSV with columns 'gene_id','chr','tss' to look up --gene's TSS from. Alternative to passing --chr/--tss directly."
+        "--bed"
+            help = "Single-gene bed-like file that specifies WHAT to map and WHERE: a plain-text (optionally gzipped) table with exactly one data row and columns chr, start, end, gene, strand (standard 6-column BED with a score column also works; header/# lines are skipped). The gene column -- a name/symbol or a gene id -- names the gene to map: with a single-column features file (e.g. a Seurat export) it must match that column; with a 10x features file (gene_id, gene_name, ...) it is searched against gene_name first, then gene_id (Ensembl id version suffixes ignored). The TSS is derived FastQTL-style: start on the + strand, end on the - strand. Chromosome naming must match the VCF's."
             default = nothing
-        "--tss"
-            help = "(--vcf only) Transcription start site position (1-based), if not using --tss-file."
-            arg_type = Int
         "--window"
             help = "(--vcf only) Cis-window half-width in bp around the TSS."
             arg_type = Int
-            default = 1_000_000
+            default = 500_000
         "--field"
             help = "(--vcf only) Which FORMAT field to convert to dosage: 'auto' (prefer GP, fall back to DS per-variant), 'GP', or 'DS'."
             arg_type = String
@@ -207,9 +201,6 @@ function parse_commandline()
             default = 0
         "--positions"
             help = "Optional TSV/CSV with two columns (variant, position) giving genomic positions to attach to the output."
-            default = nothing
-        "--chr"
-            help = "Chromosome label attached to the output. Also doubles as the VCF query chromosome for --vcf (with --tss), if not using --tss-file."
             default = nothing
         "--out"
             help = "Output path for the summary statistics table (TSV)."
@@ -352,15 +343,6 @@ function run_map(args; term_size = displaysize(stdout))
     (args["expr"] === nothing) == (args["expr-prefix"] === nothing) &&
         error("Provide exactly one of --expr (TSV/CSV) or --expr-prefix (Matrix Market)")
 
-    # --tss/--tss-file (and --window) only drive the cis-window query used to
-    # extract genotypes from --vcf; with a pre-extracted --geno table, the
-    # variants/cis-window are already fixed by that file, so these flags
-    # would silently do nothing if allowed through without comment.
-    if args["vcf"] === nothing && (args["tss"] !== nothing || args["tss-file"] !== nothing)
-        @warn "--tss/--tss-file only apply to --vcf extraction and are ignored with --geno " *
-              "(a pre-extracted genotype table already fixes its own variants/cis-window)."
-    end
-
     covariates           = splitcsv(args["covariates"])
     contexts             = splitcsv(args["contexts"])
     interaction_with_arg = args["interaction-with"] === nothing ? nothing : splitcsv(args["interaction-with"])
@@ -376,15 +358,13 @@ function run_map(args; term_size = displaysize(stdout))
 
     # -------------------------------- Load data ------------------------------ #
 
-    gene = args["gene"]
-
-    # --tss-file looks the TSS up *by gene name*, but genotype extraction
-    # below now runs before expression loading -- so unlike the expression
-    # branches, there's no header/single-column fallback left to infer
-    # --gene from at that point. Fail fast rather than silently querying
-    # the wrong region (or erroring confusingly deep inside resolve_region).
-    (args["vcf"] !== nothing && args["tss-file"] !== nothing && gene === nothing) &&
-        error("--tss-file requires --gene to look up the TSS")
+    # The single-gene --bed file specifies both WHAT to map (its gene column
+    # drives the expression lookup) and WHERE (its positions/strand give the
+    # TSS for --vcf extraction).
+    args["vcf"] !== nothing && args["bed"] === nothing &&
+        error("--vcf requires --bed (single-gene bed-like file) to locate the cis-window")
+    bed_info = args["bed"] === nothing ? nothing : Dynema.read_gene_bed(args["bed"])
+    gene = bed_info === nothing ? nothing : bed_info.gene
 
     # Validate --meta's columns (cell id, donor id, contexts, covariates) up
     # front, before the potentially slow genotype/expression reads below --
@@ -409,15 +389,13 @@ function run_map(args; term_size = displaysize(stdout))
     # pass over a potentially multi-GB file), so failures in the genotype
     # step surface before paying that cost.
     geno_t0 = time()
+    resolved_chr = nothing
     geno_df = if args["vcf"] !== nothing
         section("Extracting genotypes from VCF")
         bullet("file: $(args["vcf"])")
         r = extract_geno_dataframe(
             vcf = args["vcf"],
-            chr = args["chr"],
-            tss = args["tss"],
-            tss_file = args["tss-file"],
-            gene = args["tss-file"] === nothing ? nothing : gene,
+            bed = args["bed"],
             window = args["window"],
             field = args["field"],
             samples_file = args["samples"],
@@ -426,7 +404,8 @@ function run_map(args; term_size = displaysize(stdout))
             max_missing = args["max-missing"],
             verbose = false,
         )
-        bullet("cis-window: $(r.chr):$(r.start_pos)-$(r.end_pos) (TSS $(r.tss) +/- $(args["window"]) bp)")
+        resolved_chr = r.chr
+        bullet("cis-window: $(r.chr):$(r.start_pos)-$(r.end_pos) (TSS $(r.tss) +/- $(args["window"]) bp, from --bed)")
         bullet("samples: $(r.n_samples_vcf) in VCF, $(r.n_samples_matched) retained after sample matching")
         bullet("variants in region: $(r.n_variants_total)")
         bullet("skipped (multiallelic): $(r.n_multiallelic)", indent = 2)
@@ -443,12 +422,13 @@ function run_map(args; term_size = displaysize(stdout))
     donor_col in names(geno_df) || error("Genotype table is missing donor-id column '$donor_col'")
     ncol(geno_df) == 1 &&
         error("No variants in the genotype table (0 columns besides '$donor_col'); nothing to test. " *
-              "Check --chr/--tss/--window (or --tss-file) and --maf/--max-missing.")
+              "Check --bed/--window (and that the annotation's chromosome naming matches the VCF's), " *
+              "and --maf/--max-missing.")
 
     expr_t0 = time()
     expr_df = if args["expr-prefix"] !== nothing
         gene === nothing &&
-            error("--expr-prefix requires --gene (there's no header row to infer a single gene from)")
+            error("--expr-prefix requires --bed (whose gene column names the gene to extract; there's no header row to infer a single gene from)")
         mtx, features, barcodes = resolve_mtx_triplet(args["expr-prefix"])
         section("Reading gene expression (Matrix Market)")
         bullet("matrix:    $mtx")
@@ -475,15 +455,21 @@ function run_map(args; term_size = displaysize(stdout))
 
     gene_cols = setdiff(names(expr_df), [id_col])
     isempty(gene_cols) && error("Expression table has no gene columns besides '$id_col'")
-    if gene === nothing
-        gene = length(gene_cols) == 1 ? gene_cols[1] :
-            error("Expression table has multiple gene columns ($(join(gene_cols, ", "))); specify --gene")
+    gene_col = if gene === nothing
+        length(gene_cols) == 1 ? gene_cols[1] :
+            error("Expression table has multiple gene columns ($(join(gene_cols, ", "))); provide --bed naming the gene")
+    else
+        hits = filter(c -> Dynema.stripver(c) == Dynema.stripver(gene), gene_cols)
+        isempty(hits) && error("Gene '$gene' not found in the expression table")
+        length(hits) > 1 &&
+            error("Gene '$gene' matches multiple expression columns ($(join(hits, ", ")))")
+        hits[1]
     end
-    gene in names(expr_df) || error("Gene '$gene' not found in the expression table")
+    gene_label = gene === nothing ? gene_col : gene
 
     # ----------------------- Align expression to metadata --------------------- #
 
-    expr_lookup = Dict(zip(expr_df[:, id_col], expr_df[:, gene]))
+    expr_lookup = Dict(zip(expr_df[:, id_col], expr_df[:, gene_col]))
     missing_expr = setdiff(meta[:, id_col], expr_df[:, id_col])
     isempty(missing_expr) ||
         error("$(length(missing_expr)) cell(s) in --meta have no matching row in --expr (e.g. $(first(missing_expr)))")
@@ -526,8 +512,8 @@ function run_map(args; term_size = displaysize(stdout))
         boot = args["boot"],
         B = B,
         ptype = ptype,
-        gene = gene,
-        chr = args["chr"],
+        gene = gene_label,
+        chr = resolved_chr,  # from --bed when extracting from --vcf; nothing with --geno
     )
 
     # ------------------------- Optional genomic positions ----------------------- #

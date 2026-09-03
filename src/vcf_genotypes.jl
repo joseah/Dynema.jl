@@ -17,29 +17,71 @@
 const VCF_SAMPLE_START = 10 # VCF fixed columns: CHROM POS ID REF ALT QUAL FILTER INFO FORMAT, then samples
 
 """
-    resolve_region(; chr, tss, tss_file, gene, window) -> (chr, tss, start_pos, end_pos)
+    read_gene_bed(bed) -> (gene, chr, tss, strand)
 
-Resolves the chromosome/TSS either directly from `chr`/`tss`, or by looking
-`gene` up in `tss_file` (a table with columns gene_id, chr, tss), then
-applies `window` to get the [start_pos, end_pos] region to query. Internal
-helper for `extract_geno_dataframe`; not exported.
+Reads the single-gene bed-like file that tells Dynema *what* to map and
+*where*: a plain-text (possibly gzipped) whitespace/tab-separated table with
+columns `chr`, `start`, `end`, `gene`, `strand` -- standard 6-column BED
+(with a score column before the strand) is also accepted, and `#`
+comments/header rows are skipped. It must contain exactly one data row: its
+gene column (a name/symbol or a gene id) names the gene to map, and the TSS
+is derived from its positions the way FastQTL does -- the `start` position
+on the plus strand, the `end` position on the minus strand. Positions are
+taken as given; note classic BED starts are 0-based (one bp off a GTF-style
+start), which is immaterial for cis-window queries. Internal helper for
+`resolve_region` and the CLIs; not exported.
 """
-function resolve_region(; chr, tss, tss_file, gene, window::Int)
+function read_gene_bed(bed::AbstractString)
 
-    if gene !== nothing
-        tss_file === nothing && error("--gene requires --tss-file to look its TSS up")
-        ann = CSV.read(tss_file, DataFrame)
-        for c in ("gene_id", "chr", "tss")
-            c in names(ann) || error("--tss-file is missing required column '$c'")
+    hit = nothing
+
+    io = open_maybe_gzip(bed)
+    try
+        for line in eachline(io)
+            l = strip(line)
+            (isempty(l) || startswith(l, "#")) && continue
+            f = split(l)
+            length(f) >= 5 ||
+                error("Malformed line in $bed (need at least chr, start, end, gene, strand): '$l'")
+            tryparse(Int, f[2]) === nothing && continue  # header row
+            hit === nothing ||
+                error("$bed contains more than one gene; Dynema maps one gene per run, " *
+                      "so the file must hold exactly one data row (chr, start, end, gene, strand)")
+            strand = length(f) >= 6 && f[6] in ("+", "-", ".") ? String(f[6]) : String(f[5])
+            hit = (gene = String(f[4]), chr = String(f[1]), start = parse(Int, f[2]),
+                   stop = parse(Int, f[3]), strand = strand)
         end
-        rows = findall(==(gene), ann.gene_id)
-        isempty(rows) && error("Gene '$gene' not found in --tss-file")
-        length(rows) > 1 && error("Gene '$gene' matches $(length(rows)) rows in --tss-file; expected exactly one")
-        chr = string(ann.chr[rows[1]])
-        tss = Int(ann.tss[rows[1]])
-    else
-        (chr === nothing || tss === nothing) &&
-            error("Either --gene (with --tss-file), or both --chr and --tss, must be provided to locate the cis-window")
+    finally
+        close(io)
+    end
+
+    hit === nothing &&
+        error("No gene found in $bed; the file must hold exactly one data row (chr, start, end, gene, strand)")
+
+    tss = hit.strand == "-" ? hit.stop : hit.start
+    return (gene = hit.gene, chr = hit.chr, tss = tss, strand = hit.strand)
+
+end
+
+"""
+    resolve_region(; chr, tss, bed, window) -> (chr, tss, start_pos, end_pos)
+
+Resolves the chromosome/TSS -- either from a single-gene bed-like `bed` file
+(FastQTL-style: gene start on the + strand, gene end on the - strand; see
+[`read_gene_bed`](@ref)), or directly from `chr`/`tss` -- then applies
+`window` to get the [start_pos, end_pos] region to query. Internal helper
+for `extract_geno_dataframe`; not exported.
+"""
+function resolve_region(; chr = nothing, tss = nothing, bed = nothing, window::Int)
+
+    if bed !== nothing
+        b = read_gene_bed(bed)
+        chr === nothing || string(chr) == b.chr ||
+            @warn "chr ($chr) differs from the chromosome in the annotation ($(b.chr)); using $(b.chr) for the VCF query"
+        chr = b.chr
+        tss = b.tss
+    elseif chr === nothing || tss === nothing
+        error("Either a single-gene bed-like file, or both chr and tss, must be provided to locate the cis-window")
     end
 
     start_pos = max(1, tss - window)
@@ -94,8 +136,8 @@ function verify_chr(vcf::AbstractString, chr::AbstractString)
     more = length(contigs) > 10 ? ", ..." : ""
 
     error("Chromosome '$chr' not found in $vcf's index.$suggestion " *
-          "Available chromosome(s) in this VCF: $shown$more. Check --chr's " *
-          "(or --tss-file's 'chr' column's) naming convention against the VCF.")
+          "Available chromosome(s) in this VCF: $shown$more. Check the annotation's " *
+          "(or chr's) chromosome naming convention against the VCF.")
 
 end
 
@@ -188,12 +230,14 @@ function variant_dosage(fields::Vector{<:AbstractString}, sample_start::Int, fie
 end
 
 """
-    extract_geno_dataframe(; vcf, chr=nothing, tss=nothing, tss_file=nothing, gene=nothing,
-                            window=1_000_000, field="auto", samples_file=nothing,
+    extract_geno_dataframe(; vcf, chr=nothing, tss=nothing, bed=nothing,
+                            window=500_000, field="auto", samples_file=nothing,
                             donor_col="donor_id", maf=0.0, max_missing=0.1, verbose=true)
 
-Core VCF cis-window extraction: resolves the region around a TSS (either
-given directly via `chr`/`tss`, or looked up for `gene` in `tss_file`),
+Core VCF cis-window extraction: resolves the region around a TSS (from a
+single-gene bed-like `bed` file -- columns chr, start, end, gene, strand --
+FastQTL-style: gene start on the + strand, gene end on the - strand; or
+given directly via `chr`/`tss`),
 queries a bgzipped, tabix-indexed VCF for that region, converts each
 variant's `GP`/`DS` FORMAT field to an expected allele dosage (preferring
 `GP`, per `field`), optionally remaps VCF sample names to donor ids via
@@ -218,9 +262,8 @@ render its own progress messages from the returned counts instead.
 function extract_geno_dataframe(; vcf::AbstractString,
                                  chr::Union{Nothing,AbstractString} = nothing,
                                  tss::Union{Nothing,Int} = nothing,
-                                 tss_file::Union{Nothing,AbstractString} = nothing,
-                                 gene::Union{Nothing,AbstractString} = nothing,
-                                 window::Int = 1_000_000,
+                                 bed::Union{Nothing,AbstractString} = nothing,
+                                 window::Int = 500_000,
                                  field::AbstractString = "auto",
                                  samples_file::Union{Nothing,AbstractString} = nothing,
                                  donor_col::AbstractString = "donor_id",
@@ -228,7 +271,7 @@ function extract_geno_dataframe(; vcf::AbstractString,
                                  max_missing::Float64 = 0.1,
                                  verbose::Bool = true)
 
-    chr, tss, start_pos, end_pos = resolve_region(chr = chr, tss = tss, tss_file = tss_file, gene = gene, window = window)
+    chr, tss, start_pos, end_pos = resolve_region(chr = chr, tss = tss, bed = bed, window = window)
     printlnv("Gene TSS = $(chr):$(tss); cis-window = $(start_pos)-$(end_pos) (+/- $(window) bp)"; verbose)
 
     header_fields, data_lines = run_tabix(vcf, chr, start_pos, end_pos; verbose)

@@ -28,7 +28,7 @@ export get_stattype, get_testtype, get_boot
 export get_pos, get_gene, get_chr
 export set_pos!, set_gene!, set_chr!
 export extract_geno_dataframe
-export extract_gene_expression, resolve_mtx_triplet
+export extract_gene_expression, resolve_mtx_triplet, prepare_gene_expression
 
 
 include("Dynema_struct.jl")

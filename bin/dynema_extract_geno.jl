@@ -25,12 +25,12 @@
 # platform. No conda/brew/apt step required.
 #
 # Usage:
-#   ./dynema-extract-geno --vcf genotypes.vcf.gz --chr chr17 --tss 43044295 \
+#   ./dynema-extract-geno --vcf genotypes.vcf.gz --bed BRCA1.bed \
 #       --window 250000 --out BRCA1_geno.tsv
 #
-# or, looking up the TSS from an annotation file:
-#   ./dynema-extract-geno --vcf genotypes.vcf.gz --tss-file genes.tsv \
-#       --gene BRCA1 --window 250000 --out BRCA1_geno.tsv
+# The gene's TSS is derived from the bed-like annotation the way FastQTL
+# does it: the gene's start position on the + strand, its end position on
+# the - strand.
 #
 # The console transcript, plus the exact command run, is also saved to
 # --log (default: --out with its extension swapped for .log).
@@ -85,22 +85,14 @@ function parse_commandline()
             help = "Path to a bgzipped, tabix-indexed VCF (.vcf.gz with a .vcf.gz.tbi or .vcf.gz.csi index)."
             arg_type = String
             required = true
-        "--chr"
-            help = "Chromosome of the gene's TSS (must match the VCF's chromosome naming, e.g. 'chr1' vs '1'). Ignored if --gene/--tss-file are given."
-            default = nothing
-        "--tss"
-            help = "Transcription start site position (1-based). Ignored if --gene/--tss-file are given."
-            arg_type = Int
-        "--tss-file"
-            help = "TSV/CSV with columns 'gene_id', 'chr', 'tss' to look up --gene's TSS from, instead of passing --chr/--tss directly."
-            default = nothing
-        "--gene"
-            help = "Gene id to look up in --tss-file."
-            default = nothing
+        "--bed"
+            help = "Single-gene bed-like file that specifies which gene's cis-window to extract: a plain-text (optionally gzipped) table with exactly one data row and columns chr, start, end, gene, strand (standard 6-column BED with a score column also works; header/# lines are skipped). The TSS is derived FastQTL-style: start on the + strand, end on the - strand. Chromosome naming must match the VCF's (e.g. 'chr1' vs '1')."
+            arg_type = String
+            required = true
         "--window"
             help = "Cis-window half-width in bp around the TSS (region queried is TSS +/- window)."
             arg_type = Int
-            default = 1_000_000
+            default = 500_000
         "--field"
             help = "Which FORMAT field to convert to dosage: 'auto' (prefer GP, fall back to DS per-variant), 'GP', or 'DS'. With GP/DS forced, a variant lacking that field is skipped."
             arg_type = String
@@ -145,10 +137,7 @@ function run_extract(args)
 
     r = extract_geno_dataframe(
         vcf = args["vcf"],
-        chr = args["chr"],
-        tss = args["tss"],
-        tss_file = args["tss-file"],
-        gene = args["gene"],
+        bed = args["bed"],
         window = args["window"],
         field = args["field"],
         samples_file = args["samples"],
