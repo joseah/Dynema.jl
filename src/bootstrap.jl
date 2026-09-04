@@ -68,13 +68,16 @@ function scorebootstrap(R, r; resp::AbstractVector, scores::AbstractMatrix, beta
 
             end
 
-            # Compute final p-value; concatenate the distribution once, only
-            # for the return value.
+            # Compute final p-values; concatenate the distribution once.
             pval = compute_pvalue(counts, total, stattype)
             bootdist = length(dists) == 1 ? dists[1] : reduce(vcat, dists)
 
+            # FastQTL-style beta approximation over the bootstrap
+            # distribution: smooth, and not capped at the empirical
+            # resolution floor of ~1/B (see beta_approx_pvalue).
+            pbeta = beta_approx_pvalue(statistic, bootdist, stattype, size(R, 1))
 
-            return (pval, bootdist)
+            return (pval, pbeta, bootdist)
 
 
 end

@@ -243,7 +243,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     # (intercept, covariates, untested contexts) is still in `summ`/--out,
     # just not in this console preview.
     tt_cols = get_termtest(m) isa AbstractVector ? get_termtest(m) : [get_termtest(m)]
-    key_cols = filter(c -> c in names(glance), unique(vcat(["variant", get_stattype(m), "p"], tt_cols)))
+    key_cols = filter(c -> c in names(glance), unique(vcat(["variant", get_stattype(m), "p", "p_boot", "p_boot_approx"], tt_cols)))
 
     if length(key_cols) < ncol(glance)
 
@@ -261,10 +261,17 @@ function Base.show(io::IO, ::MIME"text/plain", m::DynemaModel)
     end
 
     if m.boot
-        println(io, "** smallest p-value computed = $(2/sum(get_B(m))); report as p < $(2/sum(get_B(m)))\n")
+        println(io, "** empirical p_boot is floored at $(2/sum(get_B(m))) (report as p < $(2/sum(get_B(m)))); " *
+                    "p_boot_approx extrapolates below it via a FastQTL-style beta approximation " *
+                    "of the bootstrap distribution\n")
     end
 
     print(io, Crayon(reset = true, bold = true), "Computation time = ")
     println(io, Crayon(foreground = :green, bold = true), "$(round(get_time(m) / 60, sigdigits = 4)) mins.")
+
+    # Reset terminal styling: without this, the green/bold state above leaks
+    # into whatever the caller prints next (e.g. the CLI's following
+    # bullets/sections).
+    print(io, Crayon(reset = true))
 
 end

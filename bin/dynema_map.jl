@@ -124,7 +124,7 @@ function parse_commandline()
             help = "Bgzipped, tabix-indexed VCF (.vcf.gz) to extract the gene's cis-window genotypes from on the fly, instead of a pre-extracted --geno file. Requires --bed to locate the cis-window, plus --window/--field/--samples/--maf/--max-missing below. Exactly one of --geno or --vcf must be given."
             default = nothing
         "--bed"
-            help = "Single-gene bed-like file that specifies WHAT to map and WHERE: a plain-text (optionally gzipped) table with exactly one data row and columns chr, start, end, gene, strand (standard 6-column BED with a score column also works; header/# lines are skipped). The gene column -- a name/symbol or a gene id -- names the gene to map: with a single-column features file (e.g. a Seurat export) it must match that column; with a 10x features file (gene_id, gene_name, ...) it is searched against gene_name first, then gene_id (Ensembl id version suffixes ignored). The TSS is derived FastQTL-style: start on the + strand, end on the - strand. Chromosome naming must match the VCF's."
+            help = "Bed-like file that specifies WHAT to map and WHERE: a plain-text (optionally gzipped) table with columns chr, start, end, gene, strand (standard 6-column BED with a score column also works; header/# lines are skipped). Each data row is one gene to map, so a multi-row file defines a batch mapped sequentially in this run -- split a genome-wide bed into chunks and submit one dynema-map job per chunk to parallelize on a cluster. The gene column -- a name/symbol or a gene id -- names each gene: with a single-column features file (e.g. a Seurat export) it must match that column; with a 10x features file (gene_id, gene_name, ...) it is searched against gene_name first, then gene_id (Ensembl id version suffixes ignored). The TSS is derived FastQTL-style: start on the + strand, end on the - strand. Chromosome naming must match the VCF's."
             default = nothing
         "--window"
             help = "(--vcf only) Cis-window half-width in bp around the TSS."
@@ -178,7 +178,7 @@ function parse_commandline()
             help = "Comma-separated subset of --contexts to include as G-by-context interaction terms in the model. Required (and must be non-empty), alongside a non-empty --contexts, when --effect is interaction/total -- neither is ever defaulted or guessed. Optional with --effect main: if given there, the interaction terms are still added to the formula (e.g. to adjust for/include an interaction without testing it), just not tested."
             default = nothing
         "--boot"
-            help = "Also compute empirical p-values via adaptive score bootstrapping (recommended for small or imbalanced cohorts)."
+            help = "Also compute bootstrap p-values via adaptive score bootstrapping (recommended for small or imbalanced cohorts). Adds two columns: p_boot, the empirical bootstrap p-value (floored at ~2/B), and p_boot_approx, a FastQTL-style beta approximation fitted to the bootstrap distribution that extrapolates smoothly below that floor."
             action = :store_true
         "--B"
             help = "Comma-separated adaptive bootstrap iteration schedule. Only used with --boot."
@@ -203,11 +203,11 @@ function parse_commandline()
             help = "Optional TSV/CSV with two columns (variant, position) giving genomic positions to attach to the output."
             default = nothing
         "--out"
-            help = "Output path for the summary statistics table (TSV)."
+            help = "Output prefix. Each gene writes its own summary statistics table, named <out>_<gene>.tsv (or <out><gene>.tsv if the prefix ends with '/'; a trailing .tsv on the prefix is stripped; directories are created). Useful to distinguish analyses of the same genes, e.g. --out main vs --out interaction. Default: <gene>.tsv in the current directory."
             arg_type = String
-            required = true
+            default = ""
         "--log"
-            help = "Path to save a full transcript of this run (the exact command invoked, plus everything printed to the console -- progress, warnings, and the results table). Default: --out with its extension replaced by .log."
+            help = "Path to save a full transcript of this run (the exact command invoked, plus everything printed to the console -- progress, warnings, and the results tables, for every gene in the batch). Default: <out prefix>.log, or dynema_map.log if no --out is given."
             default = nothing
     end
 
@@ -356,15 +356,27 @@ function run_map(args; term_size = displaysize(stdout))
     id_col           = args["cell-id-col"]
     donor_col        = args["donor-col"]
 
-    # -------------------------------- Load data ------------------------------ #
+    # ------------------------------- Gene batch ------------------------------- #
 
-    # The single-gene --bed file specifies both WHAT to map (its gene column
-    # drives the expression lookup) and WHERE (its positions/strand give the
-    # TSS for --vcf extraction).
+    # The --bed file specifies both WHAT to map (its gene column drives the
+    # expression lookup) and WHERE (positions/strand give each TSS for --vcf
+    # extraction). Each of its rows is one gene: a multi-row file is a batch,
+    # mapped sequentially within this run.
     args["vcf"] !== nothing && args["bed"] === nothing &&
-        error("--vcf requires --bed (single-gene bed-like file) to locate the cis-window")
-    bed_info = args["bed"] === nothing ? nothing : Dynema.read_gene_bed(args["bed"])
-    gene = bed_info === nothing ? nothing : bed_info.gene
+        error("--vcf requires --bed (bed-like gene file) to locate each gene's cis-window")
+    args["expr-prefix"] !== nothing && args["bed"] === nothing &&
+        error("--expr-prefix requires --bed (whose gene column names the gene(s) to extract; there's no header row to infer a single gene from)")
+    genes = args["bed"] === nothing ? nothing : Dynema.read_gene_bed(args["bed"])
+    genes !== nothing && length(genes) > 1 && args["geno"] !== nothing &&
+        error("--geno provides a single pre-extracted cis-window, so it only combines with a " *
+              "single-gene --bed ($(length(genes)) genes given); use --vcf for multi-gene batches")
+
+    if genes !== nothing
+        section("Gene batch")
+        bullet("file: $(args["bed"])")
+        shown = join([g.gene for g in first(genes, 8)], ", ") * (length(genes) > 8 ? ", ..." : "")
+        bullet("$(length(genes)) gene(s): $shown")
+    end
 
     # Validate --meta's columns (cell id, donor id, contexts, covariates) up
     # front, before the potentially slow genotype/expression reads below --
@@ -384,166 +396,226 @@ function run_map(args; term_size = displaysize(stdout))
     bullet("found $(nrow(meta)) cell(s)")
     bullet("found $(length(unique(meta[:, donor_col]))) donor(s)")
 
-    # Genotypes are loaded before expression: --vcf extraction is normally
-    # much faster than a --expr-prefix Matrix Market scan (a full sequential
-    # pass over a potentially multi-GB file), so failures in the genotype
-    # step surface before paying that cost.
-    geno_t0 = time()
-    resolved_chr = nothing
-    geno_df = if args["vcf"] !== nothing
-        section("Extracting genotypes from VCF")
-        bullet("file: $(args["vcf"])")
-        r = extract_geno_dataframe(
-            vcf = args["vcf"],
-            bed = args["bed"],
-            window = args["window"],
-            field = args["field"],
-            samples_file = args["samples"],
-            donor_col = donor_col,
-            maf = args["maf"],
-            max_missing = args["max-missing"],
-            verbose = false,
-        )
-        resolved_chr = r.chr
-        bullet("cis-window: $(r.chr):$(r.start_pos)-$(r.end_pos) (TSS $(r.tss) +/- $(args["window"]) bp, from --bed)")
-        bullet("samples: $(r.n_samples_vcf) in VCF, $(r.n_samples_matched) retained after sample matching")
-        bullet("variants in region: $(r.n_variants_total)")
-        bullet("skipped (multiallelic): $(r.n_multiallelic)", indent = 2)
-        bullet("skipped (missing GP/DS field): $(r.n_no_field)", indent = 2)
-        bullet("skipped (missingness > $(args["max-missing"])): $(r.n_high_missing)", indent = 2)
-        bullet("retained after MAF >= $(args["maf"]) filter: $(r.n_retained)", indent = 2)
-        r.geno
-    else
-        section("Reading genotypes")
-        bullet("file: $(args["geno"])")
-        readtable(args["geno"])
-    end
-    bullet("done in $(elapsed_str(geno_t0))")
-    donor_col in names(geno_df) || error("Genotype table is missing donor-id column '$donor_col'")
-    ncol(geno_df) == 1 &&
-        error("No variants in the genotype table (0 columns besides '$donor_col'); nothing to test. " *
-              "Check --bed/--window (and that the annotation's chromosome naming matches the VCF's), " *
-              "and --maf/--max-missing.")
+    # --------------------- Batch-shared inputs, read once --------------------- #
 
-    expr_t0 = time()
-    expr_df = if args["expr-prefix"] !== nothing
-        gene === nothing &&
-            error("--expr-prefix requires --bed (whose gene column names the gene to extract; there's no header row to infer a single gene from)")
+    expr_table = nothing
+    mtx = features = barcodes = nothing
+    if args["expr"] !== nothing
+        section("Reading gene expression")
+        bullet("file: $(args["expr"])")
+        expr_t0 = time()
+        expr_table = readtable(args["expr"])
+        id_col in names(expr_table) || error("Expression table is missing cell-id column '$id_col'")
+        bullet("done in $(elapsed_str(expr_t0))")
+    else
         mtx, features, barcodes = resolve_mtx_triplet(args["expr-prefix"])
-        section("Reading gene expression (Matrix Market)")
+        section("Gene expression (Matrix Market)")
         bullet("matrix:    $mtx")
         bullet("features:  $features")
         bullet("barcodes:  $barcodes")
-        r = extract_gene_expression(
-            mtx = mtx,
-            features = features,
-            barcodes = barcodes,
-            gene = gene,
-            id_col = id_col,
-            verbose = false,
-        )
-        bullet("gene '$gene' found at row $(r.target_row) of $(r.n_genes)")
-        bullet("found $(r.n_found) nonzero entries for '$gene' across $(r.n_cells) cell(s)")
-        r.expr
-    else
-        section("Reading gene expression")
-        bullet("file: $(args["expr"])")
-        readtable(args["expr"])
-    end
-    bullet("done in $(elapsed_str(expr_t0))")
-    id_col in names(expr_df) || error("Expression table is missing cell-id column '$id_col'")
-
-    gene_cols = setdiff(names(expr_df), [id_col])
-    isempty(gene_cols) && error("Expression table has no gene columns besides '$id_col'")
-    gene_col = if gene === nothing
-        length(gene_cols) == 1 ? gene_cols[1] :
-            error("Expression table has multiple gene columns ($(join(gene_cols, ", "))); provide --bed naming the gene")
-    else
-        hits = filter(c -> Dynema.stripver(c) == Dynema.stripver(gene), gene_cols)
-        isempty(hits) && error("Gene '$gene' not found in the expression table")
-        length(hits) > 1 &&
-            error("Gene '$gene' matches multiple expression columns ($(join(hits, ", ")))")
-        hits[1]
-    end
-    gene_label = gene === nothing ? gene_col : gene
-
-    # ----------------------- Align expression to metadata --------------------- #
-
-    expr_lookup = Dict(zip(expr_df[:, id_col], expr_df[:, gene_col]))
-    missing_expr = setdiff(meta[:, id_col], expr_df[:, id_col])
-    isempty(missing_expr) ||
-        error("$(length(missing_expr)) cell(s) in --meta have no matching row in --expr (e.g. $(first(missing_expr)))")
-    pheno = Float64.([expr_lookup[cid] for cid in meta[:, id_col]])
-
-    # ------------------------ Expand genotypes to cells ------------------------ #
-
-    donor_ids = geno_df[:, donor_col]
-    snp_cols  = isempty(variant_filter) ? setdiff(names(geno_df), [donor_col]) : variant_filter
-    for v in snp_cols
-        v in names(geno_df) || error("Variant '$v' not found in the genotype table (--geno or --vcf extraction)")
     end
 
-    missing_donors = setdiff(unique(meta[:, donor_col]), donor_ids)
-    isempty(missing_donors) ||
-        error("$(length(missing_donors)) donor(s) in --meta have no matching genotype (e.g. $(first(missing_donors))); check --geno/--vcf and --samples")
+    geno_table = nothing
+    if args["geno"] !== nothing
+        section("Reading genotypes")
+        bullet("file: $(args["geno"])")
+        geno_table = readtable(args["geno"])
+        donor_col in names(geno_table) || error("--geno is missing donor-id column '$donor_col'")
+    end
 
-    geno_mat = Matrix(geno_df[:, snp_cols])
-    ex_geno = expand_genotypes(geno_mat, donor_ids, meta[:, donor_col], snp_cols)
-
-    # --------------------------- Build model formula --------------------------- #
-
-    f, termtest = build_formula(covariates, contexts, args["effect"], interaction_with)
-    section("Model")
-    bullet("formula: $f")
-    bullet("testing term(s): $(termtest isa AbstractVector ? join(termtest, ", ") : termtest)")
-    bullet("N cells = $(nrow(meta)), N donors = $(length(unique(meta[:, donor_col]))), N variants = $(length(snp_cols))")
-
-    # -------------------------------- Run Dynema -------------------------------- #
-
-    section("Running Dynema")
-    res = map_locus(f;
-        pheno = pheno,
-        geno = ex_geno,
-        meta = meta,
-        groups = meta[:, donor_col],
-        termtest = termtest,
-        parallel = args["parallel"] || args["workers"] > 0,
-        betas = !args["no-betas"],
-        boot = args["boot"],
-        B = B,
-        ptype = ptype,
-        gene = gene_label,
-        chr = resolved_chr,  # from --bed when extracting from --vcf; nothing with --geno
-    )
-
-    # ------------------------- Optional genomic positions ----------------------- #
-
+    pos_map = nothing
     if args["positions"] !== nothing
         pos_df = readtable(args["positions"])
         ncol(pos_df) >= 2 || error("--positions file must have at least two columns: variant, position")
         pos_map = Dict(zip(pos_df[:, 1], pos_df[:, 2]))
-        pos = get.(Ref(pos_map), snp_cols, missing)
-        if any(ismissing, pos)
-            missing_pos = snp_cols[ismissing.(pos)]
-            @warn "No position found for $(length(missing_pos)) variant(s) (e.g. $(first(missing_pos))); positions not attached"
+    end
+
+    # The model formula is gene-independent: build and report it once.
+    f, termtest = build_formula(covariates, contexts, args["effect"], interaction_with)
+    section("Model")
+    bullet("formula: $f")
+    bullet("testing term(s): $(termtest isa AbstractVector ? join(termtest, ", ") : termtest)")
+
+    # ------------------------------ Output naming ----------------------------- #
+
+    out_prefix = args["out"]
+    endswith(out_prefix, ".tsv") && (out_prefix = out_prefix[1:end - 4])
+    outpath_for(glabel) = isempty(out_prefix) ? "$(glabel).tsv" :
+        endswith(out_prefix, "/") ? out_prefix * glabel * ".tsv" :
+        out_prefix * "_" * glabel * ".tsv"
+    outdir = dirname(out_prefix)
+    isempty(outdir) || mkpath(outdir)
+    endswith(out_prefix, "/") && mkpath(out_prefix)
+
+    # -------------------------------- Map one gene ---------------------------- #
+
+    function map_gene(g)
+
+        gene = g === nothing ? nothing : g.gene
+
+        # Genotypes first: --vcf extraction is normally much faster than an
+        # unindexed Matrix Market scan, so genotype failures surface early.
+        geno_t0 = time()
+        geno_df = if args["vcf"] !== nothing
+            bullet("extracting genotypes from $(args["vcf"])")
+            r = extract_geno_dataframe(
+                vcf = args["vcf"],
+                chr = g.chr,
+                tss = g.tss,
+                window = args["window"],
+                field = args["field"],
+                samples_file = args["samples"],
+                donor_col = donor_col,
+                maf = args["maf"],
+                max_missing = args["max-missing"],
+                verbose = false,
+            )
+            bullet("cis-window: $(r.chr):$(r.start_pos)-$(r.end_pos) (TSS $(r.tss) +/- $(args["window"]) bp, from --bed)", indent = 2)
+            bullet("samples: $(r.n_samples_vcf) in VCF, $(r.n_samples_matched) retained after sample matching", indent = 2)
+            bullet("variants in region: $(r.n_variants_total); retained: $(r.n_retained) " *
+                   "(skipped: $(r.n_multiallelic) multiallelic, $(r.n_no_field) missing GP/DS, " *
+                   "$(r.n_high_missing) high-missingness)", indent = 2)
+            r.geno
         else
-            set_pos!(res, Int.(pos))
+            geno_table
+        end
+        donor_col in names(geno_df) || error("Genotype table is missing donor-id column '$donor_col'")
+        ncol(geno_df) == 1 &&
+            error("No variants in the genotype table (0 columns besides '$donor_col'); nothing to test. " *
+                  "Check --bed/--window (and that the annotation's chromosome naming matches the VCF's), " *
+                  "and --maf/--max-missing.")
+        bullet("genotypes ready in $(elapsed_str(geno_t0))")
+
+        expr_t0 = time()
+        expr_df = if expr_table === nothing
+            r = extract_gene_expression(
+                mtx = mtx,
+                features = features,
+                barcodes = barcodes,
+                gene = gene,
+                id_col = id_col,
+                verbose = false,
+            )
+            bullet("gene '$gene' found at expression row $(r.target_row) of $(r.n_genes); " *
+                   "$(r.n_found) nonzero entries across $(r.n_cells) cell(s)")
+            r.expr
+        else
+            expr_table
+        end
+        id_col in names(expr_df) || error("Expression table is missing cell-id column '$id_col'")
+
+        gene_cols = setdiff(names(expr_df), [id_col])
+        isempty(gene_cols) && error("Expression table has no gene columns besides '$id_col'")
+        gene_col = if gene === nothing
+            length(gene_cols) == 1 ? gene_cols[1] :
+                error("Expression table has multiple gene columns ($(join(first(gene_cols, 10), ", "))...); provide --bed naming the gene(s)")
+        else
+            hits = filter(c -> Dynema.stripver(c) == Dynema.stripver(gene), gene_cols)
+            isempty(hits) && error("Gene '$gene' not found in the expression table")
+            length(hits) > 1 &&
+                error("Gene '$gene' matches multiple expression columns ($(join(hits, ", ")))")
+            hits[1]
+        end
+        gene_label = gene === nothing ? gene_col : gene
+        bullet("expression ready in $(elapsed_str(expr_t0))")
+
+        # ----------------------- Align expression to metadata ------------------ #
+
+        expr_lookup = Dict(zip(expr_df[:, id_col], expr_df[:, gene_col]))
+        missing_expr = setdiff(meta[:, id_col], expr_df[:, id_col])
+        isempty(missing_expr) ||
+            error("$(length(missing_expr)) cell(s) in --meta have no matching row in --expr (e.g. $(first(missing_expr)))")
+        pheno = Float64.([expr_lookup[cid] for cid in meta[:, id_col]])
+
+        # ------------------------ Expand genotypes to cells -------------------- #
+
+        donor_ids = geno_df[:, donor_col]
+        snp_cols  = isempty(variant_filter) ? setdiff(names(geno_df), [donor_col]) : variant_filter
+        for v in snp_cols
+            v in names(geno_df) || error("Variant '$v' not found in the genotype table (--geno or --vcf extraction)")
+        end
+
+        missing_donors = setdiff(unique(meta[:, donor_col]), donor_ids)
+        isempty(missing_donors) ||
+            error("$(length(missing_donors)) donor(s) in --meta have no matching genotype (e.g. $(first(missing_donors))); check --geno/--vcf and --samples")
+
+        geno_mat = Matrix(geno_df[:, snp_cols])
+        ex_geno = expand_genotypes(geno_mat, donor_ids, meta[:, donor_col], snp_cols)
+
+        # -------------------------------- Run Dynema --------------------------- #
+
+        bullet("mapping $(length(snp_cols)) variant(s)...")
+        res = map_locus(f;
+            pheno = pheno,
+            geno = ex_geno,
+            meta = meta,
+            groups = meta[:, donor_col],
+            termtest = termtest,
+            parallel = args["parallel"] || args["workers"] > 0,
+            betas = !args["no-betas"],
+            boot = args["boot"],
+            B = B,
+            ptype = ptype,
+            gene = gene_label,
+            chr = g === nothing ? nothing : g.chr,
+        )
+
+        # --------------------- Optional genomic positions ---------------------- #
+
+        if pos_map !== nothing
+            pos = get.(Ref(pos_map), snp_cols, missing)
+            if any(ismissing, pos)
+                missing_pos = snp_cols[ismissing.(pos)]
+                @warn "No position found for $(length(missing_pos)) variant(s) (e.g. $(first(missing_pos))); positions not attached"
+            else
+                set_pos!(res, Int.(pos))
+            end
+        end
+
+        # Dynema only defines the MIME"text/plain" show method (used for REPL
+        # auto-display), so invoke it explicitly to get the pretty-printed
+        # summary instead of Julia's generic struct fallback.
+        show(IOContext(stdout, :displaysize => term_size), MIME("text/plain"), res)
+        println()
+
+        # ------------------------------ Write output --------------------------- #
+
+        summ = get_summary(res)
+        outpath = outpath_for(gene_label)
+        CSV.write(outpath, summ; delim = '\t')
+        bullet("wrote summary statistics for $(nrow(summ)) variant(s) to $outpath")
+
+        return nothing
+
+    end
+
+    # ---------------------------- Map the whole batch -------------------------- #
+
+    batch = genes === nothing ? [nothing] : genes
+    n_ok = 0
+    failed = String[]
+    batch_t0 = time()
+
+    for (gi, g) in enumerate(batch)
+        glabel = g === nothing ? "single --expr gene" : g.gene
+        section(length(batch) > 1 ? "Gene $glabel [$gi/$(length(batch))]" : "Gene $glabel")
+        try
+            map_gene(g)
+            n_ok += 1
+        catch err
+            # For a single-gene run, fail loudly (as before); in a batch, one
+            # bad gene (e.g. absent from the features file) must not sink the
+            # rest of the job.
+            length(batch) == 1 && rethrow()
+            bt = catch_backtrace()
+            @warn "Mapping failed for gene $glabel; continuing with the remaining genes" exception = (err, bt)
+            push!(failed, glabel)
         end
     end
 
-    # Dynema only defines the MIME"text/plain" show method (used for REPL
-    # auto-display), so invoke it explicitly to get the pretty-printed summary
-    # instead of Julia's generic struct fallback.
-    section("Results")
-    show(IOContext(stdout, :displaysize => term_size), MIME("text/plain"), res)
-    println()
-
-    # ------------------------------- Write output ------------------------------- #
-
-    summ = get_summary(res)
-    CSV.write(args["out"], summ; delim = '\t')
     section("Done")
-    bullet("wrote summary statistics for $(nrow(summ)) variant(s) to $(args["out"])")
+    bullet("$n_ok/$(length(batch)) gene(s) mapped successfully in $(elapsed_str(batch_t0))")
+    isempty(failed) || bullet("failed: $(join(failed, ", "))")
 
 end
 
@@ -552,14 +624,20 @@ end
 
 Parses CLI arguments, prints the invoking command, then runs `run_map(args)`
 wrapped in `with_tee_log` so the whole run's console output -- and that same
-command -- is saved to `--log` (default: `--out` with its extension
-replaced by `.log`) in addition to being shown on the terminal as usual.
+command -- is saved to `--log` (default: the --out prefix with `.log`
+appended, or `dynema_map.log`) in addition to being shown on the terminal as
+usual.
 """
 function main()
 
     args = parse_commandline()
 
-    log_path = args["log"] !== nothing ? args["log"] : splitext(args["out"])[1] * ".log"
+    out_stem = args["out"]
+    endswith(out_stem, ".tsv") && (out_stem = out_stem[1:end - 4])
+    log_path = args["log"] !== nothing ? args["log"] :
+        isempty(out_stem)          ? "dynema_map.log" :
+        endswith(out_stem, "/")    ? out_stem * "dynema_map.log" :
+                                     out_stem * ".log"
     command  = "dynema_map.jl " * join(shell_quote.(ARGS), " ")
 
     section("Command")

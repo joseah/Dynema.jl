@@ -49,7 +49,7 @@ input=demo_data
   --donor-col donor_id \
   --cell-id-col cell_id \
   --effect main \
-  --out CTSS_main.tsv
+  --out main
 
 ```
 

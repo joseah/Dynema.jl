@@ -42,7 +42,7 @@ input=demo_data
   --donor-col donor_id \
   --cell-id-col cell_id \
   --effect interaction \
-  --out CTSS_multi-interaction.tsv
+  --out interaction
 
 ```
 

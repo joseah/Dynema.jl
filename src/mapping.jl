@@ -216,6 +216,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
         failed_variants_names = variant_names[failed_variants]
         println(Crayon(foreground = :yellow), "The following variants failed:\n$(join(failed_variants_names, '\n'))")
         println(Crayon(foreground = :red), "Removing failed variants from output...")
+        print(Crayon(reset = true))  # don't leak the red styling into subsequent output
         results = results[Not(failed_variants)]
         variant_names = variant_names[Not(failed_variants)]
 
@@ -311,10 +312,11 @@ function map_variant(variant::AbstractVector; f::FormulaTerm, d::AbstractDataFra
         # --------------------------------- Bootstrap -------------------------------- #
 
         if boot
-            pboot, bootdist = scorebootstrap(R, r; resp = y, scores = scores, betas = betas_vec,
+            pboot, pbeta, bootdist = scorebootstrap(R, r; resp = y, scores = scores, betas = betas_vec,
                         A = A, clustid = groups,
                         rng = rng, ptype = ptype, B = B)
             res[!, :p_boot] = [pboot]
+            res[!, :p_boot_approx] = [pbeta]
         end
 
 
@@ -767,10 +769,11 @@ function map_variant_shared(ws::LocusWorkspace, variant::AbstractVector;
         # --------------------------------- Bootstrap -------------------------------- #
 
         if boot
-            pboot, bootdist = scorebootstrap(R, r; resp = ws.y, scores = ws.scores, betas = ws.betas0,
+            pboot, pbeta, bootdist = scorebootstrap(R, r; resp = ws.y, scores = ws.scores, betas = ws.betas0,
                         A = A, clustid = groups,
                         rng = rng, ptype = ptype, B = B)
             res[!, :p_boot] = [pboot]
+            res[!, :p_boot_approx] = [pbeta]
         end
 
         # ------------------- Extract betas from unrestricted model ------------------ #

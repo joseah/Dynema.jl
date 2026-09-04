@@ -17,23 +17,25 @@
 const VCF_SAMPLE_START = 10 # VCF fixed columns: CHROM POS ID REF ALT QUAL FILTER INFO FORMAT, then samples
 
 """
-    read_gene_bed(bed) -> (gene, chr, tss, strand)
+    read_gene_bed(bed) -> Vector of (gene, chr, tss, strand)
 
-Reads the single-gene bed-like file that tells Dynema *what* to map and
-*where*: a plain-text (possibly gzipped) whitespace/tab-separated table with
-columns `chr`, `start`, `end`, `gene`, `strand` -- standard 6-column BED
-(with a score column before the strand) is also accepted, and `#`
-comments/header rows are skipped. It must contain exactly one data row: its
-gene column (a name/symbol or a gene id) names the gene to map, and the TSS
-is derived from its positions the way FastQTL does -- the `start` position
-on the plus strand, the `end` position on the minus strand. Positions are
-taken as given; note classic BED starts are 0-based (one bp off a GTF-style
-start), which is immaterial for cis-window queries. Internal helper for
-`resolve_region` and the CLIs; not exported.
+Reads the bed-like file that tells Dynema *what* to map and *where*: a
+plain-text (possibly gzipped) whitespace/tab-separated table with columns
+`chr`, `start`, `end`, `gene`, `strand` -- standard 6-column BED (with a
+score column before the strand) is also accepted, and `#` comments/header
+rows are skipped. Each data row is one gene to map (so a multi-row file
+defines a batch): its gene column (a name/symbol or a gene id) names the
+gene, and the TSS is derived from its positions the way FastQTL does -- the
+`start` position on the plus strand, the `end` position on the minus
+strand. Positions are taken as given; note classic BED starts are 0-based
+(one bp off a GTF-style start), which is immaterial for cis-window queries.
+Duplicated gene names (which would collide on output filenames) and empty
+files are errors. Internal helper for `resolve_region` and the CLIs; not
+exported.
 """
 function read_gene_bed(bed::AbstractString)
 
-    hit = nothing
+    genes = NamedTuple{(:gene, :chr, :tss, :strand), Tuple{String, String, Int, String}}[]
 
     io = open_maybe_gzip(bed)
     try
@@ -44,22 +46,25 @@ function read_gene_bed(bed::AbstractString)
             length(f) >= 5 ||
                 error("Malformed line in $bed (need at least chr, start, end, gene, strand): '$l'")
             tryparse(Int, f[2]) === nothing && continue  # header row
-            hit === nothing ||
-                error("$bed contains more than one gene; Dynema maps one gene per run, " *
-                      "so the file must hold exactly one data row (chr, start, end, gene, strand)")
             strand = length(f) >= 6 && f[6] in ("+", "-", ".") ? String(f[6]) : String(f[5])
-            hit = (gene = String(f[4]), chr = String(f[1]), start = parse(Int, f[2]),
-                   stop = parse(Int, f[3]), strand = strand)
+            start = parse(Int, f[2])
+            stop = parse(Int, f[3])
+            tss = strand == "-" ? stop : start
+            push!(genes, (gene = String(f[4]), chr = String(f[1]), tss = tss, strand = strand))
         end
     finally
         close(io)
     end
 
-    hit === nothing &&
-        error("No gene found in $bed; the file must hold exactly one data row (chr, start, end, gene, strand)")
+    isempty(genes) &&
+        error("No genes found in $bed; each data row must be one gene (chr, start, end, gene, strand)")
 
-    tss = hit.strand == "-" ? hit.stop : hit.start
-    return (gene = hit.gene, chr = hit.chr, tss = tss, strand = hit.strand)
+    dupes = [g for (g, c) in countmap([g.gene for g in genes]) if c > 1]
+    isempty(dupes) ||
+        error("Duplicated gene name(s) in $bed ($(join(first(dupes, 5), ", "))); " *
+              "each gene must appear once (its name determines the output filename)")
+
+    return genes
 
 end
 
@@ -75,7 +80,11 @@ for `extract_geno_dataframe`; not exported.
 function resolve_region(; chr = nothing, tss = nothing, bed = nothing, window::Int)
 
     if bed !== nothing
-        b = read_gene_bed(bed)
+        genes = read_gene_bed(bed)
+        length(genes) == 1 ||
+            error("$bed contains $(length(genes)) genes; this extraction handles one gene at a time -- " *
+                  "pass a single-gene file (or chr/tss directly), or use dynema-map for multi-gene batches")
+        b = genes[1]
         chr === nothing || string(chr) == b.chr ||
             @warn "chr ($chr) differs from the chromosome in the annotation ($(b.chr)); using $(b.chr) for the VCF query"
         chr = b.chr

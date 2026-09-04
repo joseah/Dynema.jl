@@ -42,6 +42,43 @@ compute_pvalue(stat, boot, stattype) =
 
 
 """
+    beta_approx_pvalue(stat, boot, stattype, q) -> Float64
+
+FastQTL-style beta approximation of the bootstrap p-value, lifting the
+empirical `p_boot`'s resolution floor of ~1/B. Both the observed statistic
+and every bootstrap draw are transformed to *nominal* p-values under the
+analytical reference distribution (two-sided normal for `"z"`, chi-square
+with `q` degrees of freedom for `"χ²"`). If that reference were exactly
+correct, the bootstrap nominal p-values would be Uniform(0,1) = Beta(1,1);
+instead, a `Beta(a, b)` is fit to them by maximum likelihood (with a
+method-of-moments fallback), capturing any miscalibration, and the observed
+nominal p-value is evaluated under the fitted Beta's CDF. The result is a
+smooth p-value that extrapolates below 1/B through the parametric form --
+exactly how FastQTL extrapolates beyond its permutation count, applied here
+to the score-bootstrap distribution. Returns `NaN` if the fit is degenerate.
+"""
+function beta_approx_pvalue(stat, boot, stattype, q::Int)
+
+    tonominal(x) = stattype == "z" ? 2 * ccdf(Normal(), abs(x)) : ccdf(Chisq(q), x)
+
+    ps = clamp.(tonominal.(boot), 1e-12, 1 - 1e-12)
+
+    bfit = try
+        fit_mle(Beta, ps)
+    catch
+        # Method-of-moments fallback (also FastQTL's starting values)
+        m, v = mean(ps), var(ps)
+        (v <= 0 || v >= m * (1 - m)) && return NaN
+        k = m * (1 - m) / v - 1
+        Beta(max(m * k, 1e-8), max((1 - m) * k, 1e-8))
+    end
+
+    return cdf(bfit, min(tonominal(stat), 1.0))
+
+end
+
+
+"""
     crvetest(R, r; resp, scores, betas, A, clustid, small = false)
 
 Analytical CRVE score (Lagrange multiplier) test via

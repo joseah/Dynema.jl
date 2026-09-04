@@ -7,10 +7,10 @@ installed yet.
 [Dynema.jl repository](https://github.com/joseah/Dynema.jl) ships a
 self-contained command-line tool:
 
-- **`dynema-map`**: This tool maps a single gene against one or 
-  more genetic variant -- reads gene expression, single-cell metadata, 
-  and genotypes, runs [`map_locus`](@ref), and writes a
-  summary statistics table.
+- **`dynema-map`**: This tool maps one or more genes (a batch, defined by
+  the rows of `--bed`) against their cis genetic variants -- reads gene
+  expression, single-cell metadata, and genotypes, runs [`map_locus`](@ref)
+  per gene, and writes one summary statistics table per gene.
 - **`dynema-prepare-expr`** (optional, run once per expression matrix):
   builds a gene-major index (`.dgx`) next to a Matrix Market export, after
   which `dynema-map` loads any single gene in milliseconds instead of
@@ -48,13 +48,14 @@ instead: `julia --project=bin bin/dynema_map.jl [options]`.
   about a second. A plain text file (a pre-extracted donor-level dosage table:
   one donor-id column, one column per variant -- e.g. the output of
   `dynema-extract-geno`) is also accepted.
-- **The gene to map**: a single-gene bed-like plain text file (`--bed`) with
-  columns chr, start, end, gene, strand and exactly one data row. It serves
-  two purposes at once: its gene column (a name/symbol or gene id) specifies
-  *what* to map, and its positions/strand give the TSS, derived
+- **The gene(s) to map**: a bed-like plain text file (`--bed`) with columns
+  chr, start, end, gene, strand -- one data row per gene. It serves two
+  purposes at once: its gene column (a name/symbol or gene id) specifies
+  *what* to map, and its positions/strand give each TSS, derived
   FastQTL-style -- the gene's start position on the plus strand, its end
-  position on the minus strand. (One small file per gene, not a full GTF --
-  reading it stays instant.)
+  position on the minus strand. A multi-row file defines a batch: the genes
+  are mapped one after another in the same run, each writing its own output
+  file. (A small curated table, not a full GTF -- reading it stays instant.)
 - **Metadata**: plain text file with cell id, donor id, cell-state
   contexts, and any donor or single-cell covariates, one row per cell.
 - **Type of eQTL effect**: either main, interaction, or total.
@@ -87,7 +88,7 @@ Here's a simple example just to illustrate the parameter usage (do not run):
   --donor-col donor_id \
   --cell-id-col cell_id \
   --effect interaction \
-  --out CTSS_multi-interaction.tsv
+  --out interaction
 ```
 
 Arguments:
@@ -103,11 +104,11 @@ Arguments:
   Beagle, etc.). `--field auto` (the default) prefers `GP` over `DS` when a
   variant has both; hard-call genotypes (`GT`) are never read. 
   Must be accompanied by a tabix index file (*.tbi).
-- `--bed`: single-gene bed-like file (plain or gzipped) specifying the gene
-  to map: exactly one data row with columns chr, start, end, gene, strand (a
+- `--bed`: bed-like file (plain or gzipped) specifying the gene(s) to map:
+  one data row per gene with columns chr, start, end, gene, strand (a
   standard 6-column BED with a score column also works; header/`#` lines are
-  skipped). Its gene column -- a gene name/symbol (`CTSS`) or a gene id
-  (`ENSG00000163131`) -- names the gene: with a single-column features file
+  skipped). Each row's gene column -- a gene name/symbol (`CTSS`) or a gene
+  id (`ENSG00000163131`) -- names that gene: with a single-column features file
   (e.g. a Seurat export) it must match that column exactly; with a 10x
   features file (gene_id, gene_name, modality) it is searched against
   gene_name (column 2) first and, failing that, against gene_id (column 1) --
@@ -129,7 +130,12 @@ Arguments:
 - `--effect`: Type of single-cell eQTL to test: main, interaction, or total
 - `--interaction-with`: indicates the interactions we want test for. Only necessary if a total or interaction
 effect is assessed. 
-- `--out`: output file with summary statistics.
+- `--out`: output *prefix*. Each gene writes its own summary statistics
+  table named `<out>_<gene>.tsv` (or `<out><gene>.tsv` if the prefix ends in
+  `/`; directories are created as needed; with no `--out`, just
+  `<gene>.tsv`). This makes it easy to distinguish analyses of the same
+  genes: `--out main` and `--out interaction` give `main_CTSS.tsv` and
+  `interaction_CTSS.tsv`.
 
 
 ## Alternative: plain text files
@@ -156,7 +162,26 @@ Here's a simple example just to illustrate the parameter usage (do not run):
   --donor-col donor_id \
   --cell-id-col cell_id \
   --effect interaction \
-  --out CTSS_multi-interaction.tsv
+  --out interaction
+```
+
+## Mapping many genes: batches
+
+Dynema maps genome-wide studies the same way FastQTL does: split the gene
+list into chunks and let your HPC scheduler parallelize over chunks. Each
+`dynema-map` invocation takes one bed-like chunk file and maps its genes
+sequentially -- metadata, plain-text expression, the model formula, and (via
+the `.dgx` index) the expression matrix are all loaded once per invocation,
+so per-gene overhead stays low. A gene that fails (e.g. absent from the
+features file) is reported and skipped without sinking the rest of the
+batch, and each gene writes its own `<out>_<gene>.tsv`. For example, with a
+genome-wide `genes.bed` split into 100-gene chunks:
+
+```bash
+split -l 100 genes.bed chunk_
+# then submit one job per chunk, e.g. (SLURM):
+#   ./bin/dynema-map --bed chunk_aa --expr-prefix expr --vcf genotypes.vcf.gz \
+#     ... --out main --log main_chunk_aa.log
 ```
 
 ## Learn more

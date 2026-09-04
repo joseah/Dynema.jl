@@ -44,7 +44,7 @@ input=demo_data
   --donor-col donor_id \
   --cell-id-col cell_id \
   --effect total \
-  --out CTSS_total.tsv
+  --out total
 ```
 
 This is the command-line equivalent of building the formula
