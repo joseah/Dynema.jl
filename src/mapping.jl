@@ -40,9 +40,10 @@ the restricted (null) fit. If the null model contains no genotype-dependent
 terms (as in main/total effect tests, where every tested term involves `G`),
 it is fit only once and reused across all variants.
 
-- `betas`: Whether to fit the unrestricted model for every variant to report its per-variant coefficient estimates in the summary
-table. These estimates are not needed for the score test itself, so `betas = false` skips that per-variant fit
-entirely (fastest, but no coefficient columns in the output). Default `true`
+- `betas`: Which variants get unrestricted-model coefficient estimates attached as extra summary columns (they are not
+needed for the score test itself): `:lead` (default) fits only the lead variant(s) -- smallest analytical p-value,
+including exact ties -- leaving the estimate columns `missing` for all other variants; `:all` fits every variant
+(slowest); `:none` skips estimates entirely (fastest)
 - `boot`: Apply score bootstrapping? If false, analytical p-values using a CRVE are returned. Bootstrapping
 requires the optional WildBootTests package (`Pkg.add("WildBootTests"); using WildBootTests` alongside `using Dynema`)
 - `B``: Number of bootstrap iterations to apply. By default 39999 iterations at apply to achieve a p-value of 5 x 10^-5 for a two-tail test. 
@@ -59,13 +60,19 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
                     meta::AbstractDataFrame, groups::Union{AbstractDataFrame, AbstractVector}, termtest::Union{String, Vector{String}}, 
                     parallel = false,
                     H0::Float64 = Float64(0),
-                    betas::Bool = true,
+                    betas::Union{Symbol, AbstractString} = :lead,
                     boot::Bool = false,
                     B::Vector{Int64} = [200, 200, 1600, 2000, 16000, 20000], 
                     ptype::Symbol = :equaltail, rboot = false,
                     pos::Union{Nothing, Vector{Int64}, Vector{Float64}} = nothing,
                     gene::Union{Nothing, String} = nothing,
                     chr::Union{Nothing, String, Int} = nothing)
+
+    # ------------------------------- Betas mode -------------------------------- #
+
+    betamode = Symbol(betas)
+    betamode in (:all, :none, :lead) ||
+        error("betas must be :all, :none, or :lead (got $betas)")
 
     # --------------------- Vectorize arguments if necessary --------------------- #
 
@@ -184,7 +191,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
         chunk_results = @showprogress pmap(CachingPool(workers()), chunks) do idxs
             map_chunk(idxs; f = f, design = design, μ̂0 = μ̂0, beta0 = beta0, v0 = v0,
                       groups = groups, geno = geno, R = R, r = r, boot = boot, B = B,
-                      ptype = ptype, rboot = rboot, betas = betas)
+                      ptype = ptype, rboot = rboot, betas = betamode == :all)
         end
         reduce(vcat, chunk_results)
 
@@ -193,7 +200,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
             safe_map_variant_shared(ws, geno[:, i]; groups = groups,
                     R = R, r = r, boot = boot, B = B, ptype = ptype, rboot = rboot,
-                    rng = StableRNG(1322), betas = betas)
+                    rng = StableRNG(1322), betas = betamode == :all)
         end
 
     else
@@ -201,7 +208,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
 
             safe_map_variant(geno[:, i]; f = f,  d = design, groups = groups, R = R, r = r,
                     boot = boot, B = B, ptype = ptype, rboot = rboot, rng = StableRNG(1322),
-                    μ̂0 = μ̂0, beta0 = beta0, betas = betas)
+                    μ̂0 = μ̂0, beta0 = beta0, betas = betamode == :all)
         end
 
     end
@@ -211,6 +218,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
     # ------------------------ Collect summary statistics ------------------------ #
 
     failed_variants = isnothing.(results)
+    kept_idx = collect(1:length(results))  # geno column index per retained result row
 
     if any(failed_variants)
         
@@ -220,6 +228,7 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
         print(Crayon(reset = true))  # don't leak the red styling into subsequent output
         results = results[Not(failed_variants)]
         variant_names = variant_names[Not(failed_variants)]
+        kept_idx = kept_idx[Not(failed_variants)]
 
     end
 
@@ -229,6 +238,31 @@ function map_locus(f::FormulaTerm; pheno::AbstractVector, geno::Union{AbstractMa
     # loci with many variants.
     summ_stats = rboot ? reduce(vcat, [first(x) for x in results]) : reduce(vcat, results)
     insertcols!(summ_stats, 1, :variant => variant_names)
+
+    # --------------------------- Lead-variant betas ----------------------------- #
+
+    # betamode == :lead: effect sizes are usually only inspected for the top
+    # association(s), so instead of fitting the unrestricted model for every
+    # variant (:all), fit it only for the lead variant(s) -- smallest
+    # analytical p-value, including all exactly tied variants -- and attach
+    # their coefficient estimates, leaving every other row `missing`.
+    if betamode == :lead && nrow(summ_stats) > 0
+        pmin = minimum(summ_stats.p)
+        lead_rows = findall(==(pmin), summ_stats.p)
+        lead_fits = map(lead_rows) do i
+            design[!, :G] = Float64.(geno[:, kept_idx[i]])
+            m = glm(f, design, Poisson(), LogLink())
+            (coefnames(m), coef(m))
+        end
+        cnames = lead_fits[1][1]
+        for (ci, cn) in enumerate(cnames)
+            col = Vector{Union{Missing, Float64}}(missing, nrow(summ_stats))
+            for (l, i) in enumerate(lead_rows)
+                col[i] = lead_fits[l][2][ci]
+            end
+            summ_stats[!, cn] = col
+        end
+    end
     
     # ---------------- Collect bootstrap distribution if necessary --------------- #
 

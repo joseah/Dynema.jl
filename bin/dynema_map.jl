@@ -205,9 +205,11 @@ function parse_commandline()
             arg_type = String
             default = "equaltail"
             range_tester = x -> x in ("equaltail", "symmetric")
-        "--no-betas"
-            help = "Skip fitting the unrestricted model per variant and omit its coefficient estimates from the output. The score test does not need those estimates -- they are only reported for convenience -- so this substantially reduces per-variant fitting work."
-            action = :store_true
+        "--betas"
+            help = "Which variants to fit the unrestricted model for, attaching per-variant effect-size estimates as extra output columns (the score test itself never needs them): 'lead' (default) fits only the lead variant(s) -- smallest analytical p-value, including all exactly tied variants -- leaving the estimate columns empty for the rest; 'all' fits every variant (substantially slower); 'none' skips estimates entirely (fastest)."
+            arg_type = String
+            default = "lead"
+            range_tester = x -> x in ("all", "none", "lead")
         "--parallel"
             help = "Distribute variants across worker processes with Distributed.jl. Use with --workers N, or start workers yourself (e.g. `julia -p 4 --project=bin bin/dynema_map.jl ...`)."
             action = :store_true
@@ -568,7 +570,7 @@ function run_map(args; term_size = displaysize(stdout))
             groups = meta[:, donor_col],
             termtest = termtest,
             parallel = args["parallel"] || args["workers"] > 0,
-            betas = !args["no-betas"],
+            betas = Symbol(args["betas"]),
             boot = args["boot"],
             B = B,
             ptype = ptype,
