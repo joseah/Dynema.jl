@@ -91,6 +91,22 @@ let i = findfirst(==("--workers"), ARGS)
     end
 end
 
+# --boot needs the optional WildBootTests package (Dynema's own direct score
+# test covers everything else). On first --boot use, install it into this
+# shared bin/ environment, then load it so Dynema's bootstrap extension
+# activates. Scanned from the raw ARGS (like --workers) since ArgParse runs
+# later; placed after the --workers block so a `using` here also reaches any
+# freshly started worker processes.
+if "--boot" in ARGS
+    if !haskey(Pkg.project().dependencies, "WildBootTests")
+        println("--boot uses the optional WildBootTests package; installing it into the " *
+                "bin/ environment (one-time, may take a minute)...")
+        flush(stdout)
+        Pkg.add("WildBootTests"; io = stdout)
+    end
+    @eval using WildBootTests
+end
+
 using ArgParse
 using CSV
 using DataFrames
@@ -178,7 +194,7 @@ function parse_commandline()
             help = "Comma-separated subset of --contexts to include as G-by-context interaction terms in the model. Required (and must be non-empty), alongside a non-empty --contexts, when --effect is interaction/total -- neither is ever defaulted or guessed. Optional with --effect main: if given there, the interaction terms are still added to the formula (e.g. to adjust for/include an interaction without testing it), just not tested."
             default = nothing
         "--boot"
-            help = "Also compute bootstrap p-values via adaptive score bootstrapping (recommended for small or imbalanced cohorts). Adds two columns: p_boot, the empirical bootstrap p-value (floored at ~2/B), and p_boot_approx, a FastQTL-style beta approximation fitted to the bootstrap distribution that extrapolates smoothly below that floor."
+            help = "Also compute bootstrap p-values via adaptive score bootstrapping (recommended for small or imbalanced cohorts). Adds two columns: p_boot, the empirical bootstrap p-value (floored at ~2/B), and p_boot_approx, a FastQTL-style beta approximation fitted to the bootstrap distribution that extrapolates smoothly below that floor. Uses the optional WildBootTests package, installed automatically into the bin/ environment on first use."
             action = :store_true
         "--B"
             help = "Comma-separated adaptive bootstrap iteration schedule. Only used with --boot."

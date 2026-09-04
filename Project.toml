@@ -27,8 +27,13 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 StatsModels = "3eaba693-59b7-5ba5-a881-562e759f1c8d"
-WildBootTests = "65c2e505-86ba-4c19-93f1-95506c1443d5"
 htslib_jll = "f06fe41e-9474-5571-8c61-5634d2b2700c"
+
+[weakdeps]
+WildBootTests = "65c2e505-86ba-4c19-93f1-95506c1443d5"
+
+[extensions]
+DynemaWildBootTestsExt = "WildBootTests"
 
 [compat]
 CategoricalArrays = "0.10.8"
@@ -44,7 +49,7 @@ ProgressMeter = "1.10.2"
 StableRNGs = "1.0.3"
 StaticArrays = "1.9.12"
 WildBootTests = "1.0.1"
-julia = "1.6.7"
+julia = "1.9"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

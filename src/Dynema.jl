@@ -1,6 +1,5 @@
 module Dynema
 
-using WildBootTests
 using GLM
 using StatsBase
 using Distributed
@@ -29,6 +28,17 @@ export get_pos, get_gene, get_chr
 export set_pos!, set_gene!, set_chr!
 export extract_geno_dataframe
 export extract_gene_expression, resolve_mtx_triplet, prepare_gene_expression
+
+# WildBootTests.jl is an *optional* (weak) dependency: Dynema's own direct
+# CRVE score test covers standard analytical mapping, and only score
+# bootstrapping (`boot = true`) and a few fallback/self-check paths need the
+# library. The DynemaWildBootTestsExt extension (loaded automatically when
+# WildBootTests is installed and `using WildBootTests` has run alongside
+# Dynema) provides the real `crvetest`/`scorebootstrap` methods and flips
+# this flag; without it, those paths error with install instructions (see
+# the stubs in pvalue.jl/bootstrap.jl) and the fast path skips its one-time
+# library self-check.
+const HAS_WILDBOOTTESTS = Ref(false)
 
 
 include("Dynema_struct.jl")

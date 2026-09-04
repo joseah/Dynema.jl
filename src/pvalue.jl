@@ -82,26 +82,19 @@ end
     crvetest(R, r; resp, scores, betas, A, clustid, small = false)
 
 Analytical CRVE score (Lagrange multiplier) test via
-`WildBootTests.scoretest`. `getci`/`getplot`/`getdist` are disabled
-explicitly: they default to `true` in WildBootTests and trigger a full
-confidence-curve grid search per call whose output Dynema never reads.
+`WildBootTests.scoretest`. WildBootTests is an *optional* dependency: this
+generic implementation is only needed as a fallback (multiway clustering,
+formulas outside the fast path) and for the fast path's one-time
+self-check; standard one-way-clustered mapping uses Dynema's own
+[`crvetest_direct`](@ref) instead. The real method lives in the
+DynemaWildBootTestsExt extension; this stub errors with install
+instructions when the extension isn't loaded.
 """
-function crvetest(R, r; resp::AbstractVector, scores::AbstractMatrix, betas::AbstractVector,
-                    A::AbstractMatrix, clustid::AbstractMatrix, small::Bool = false)
-
-    scoretest(R, r;
-                resp = resp,
-                scores = scores,
-                beta = betas,
-                A = A,
-                clustid = clustid,
-                ml = true,
-                scorebs = true,
-                small = small,
-                getci = false,
-                getplot = false,
-                getdist = false)
-
+function crvetest(R, r; kwargs...)
+    error("This code path needs the optional WildBootTests package (used as a fallback " *
+          "for multiway clustering or non-standard formulas). Install and load it with:\n" *
+          "    using Pkg; Pkg.add(\"WildBootTests\"); using WildBootTests\n" *
+          "alongside `using Dynema` (the dynema-map CLI does this automatically when --boot is used).")
 end
 
 

@@ -18,7 +18,7 @@ self-contained command-line tool:
 
 This script bootstraps its own Julia environment automatically the first
 time it's run (installing `Dynema` plus a handful of CLI-only
-dependencies), so all you need installed is Julia (>= 1.6)
+dependencies), so all you need installed is Julia (>= 1.9)
 itself. 
 
 

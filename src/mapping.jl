@@ -43,7 +43,8 @@ it is fit only once and reused across all variants.
 - `betas`: Whether to fit the unrestricted model for every variant to report its per-variant coefficient estimates in the summary
 table. These estimates are not needed for the score test itself, so `betas = false` skips that per-variant fit
 entirely (fastest, but no coefficient columns in the output). Default `true`
-- `boot`: Apply score bootstrapping? If false, analytical p-values using a CRVE are returned
+- `boot`: Apply score bootstrapping? If false, analytical p-values using a CRVE are returned. Bootstrapping
+requires the optional WildBootTests package (`Pkg.add("WildBootTests"); using WildBootTests` alongside `using Dynema`)
 - `B``: Number of bootstrap iterations to apply. By default 39999 iterations at apply to achieve a p-value of 5 x 10^-5 for a two-tail test. 
 For adaptive bootstrapping, the number of iterations might be specified as a vector indicating the number of iterations
 to perform in each step
@@ -745,16 +746,21 @@ function map_variant_shared(ws::LocusWorkspace, variant::AbstractVector;
             direct = crvetest_direct(R, A, ws.Sg, ws.clustshare)
             if !ws.checked[]
                 # One-time self-check of the direct statistic/p-value against
-                # the WildBootTests implementation, on the first variant.
+                # the WildBootTests implementation, on the first variant --
+                # skipped when the optional WildBootTests package isn't
+                # installed (the direct implementation is then trusted
+                # as-is).
                 ws.checked[] = true
-                ref = crvetest(R, r; resp = ws.y, scores = ws.scores, betas = ws.betas0,
-                            A = A, clustid = groups)
-                if !(isapprox(ref.stat, direct.stat; rtol = 1e-8) &&
-                     isapprox(ref.p, direct.p; rtol = 1e-6))
-                    @warn "Direct CRVE score test failed its self-check against WildBootTests " *
-                          "(stat $(direct.stat) vs $(ref.stat)); falling back to the library implementation"
-                    ws.direct[] = false
-                    direct = (stat = ref.stat, p = ref.p, stattype = ref.stattype)
+                if HAS_WILDBOOTTESTS[]
+                    ref = crvetest(R, r; resp = ws.y, scores = ws.scores, betas = ws.betas0,
+                                A = A, clustid = groups)
+                    if !(isapprox(ref.stat, direct.stat; rtol = 1e-8) &&
+                         isapprox(ref.p, direct.p; rtol = 1e-6))
+                        @warn "Direct CRVE score test failed its self-check against WildBootTests " *
+                              "(stat $(direct.stat) vs $(ref.stat)); falling back to the library implementation"
+                        ws.direct[] = false
+                        direct = (stat = ref.stat, p = ref.p, stattype = ref.stattype)
+                    end
                 end
             end
             direct
