@@ -259,6 +259,8 @@ Returns a `NamedTuple` with:
   the shape both `dynema-map --geno` and `dynema-extract-geno --out` use, so the
   result can either be written straight to a file or handed to `map_locus`
   (via `expand_genotypes`) directly.
+- `positions::Vector{Int}`: each retained variant's genomic position (the VCF
+  POS field), aligned with `geno`'s variant columns.
 - `chr`, `tss`, `start_pos`, `end_pos`: the resolved cis-window.
 - `n_samples_vcf`, `n_samples_matched`: sample counts before/after `samples_file` matching.
 - `n_variants_total`, `n_multiallelic`, `n_no_field`, `n_high_missing`, `n_retained`:
@@ -310,7 +312,7 @@ function extract_geno_dataframe(; vcf::AbstractString,
 
     if isempty(data_lines)
         @warn "No variants found in $(chr):$(start_pos)-$(end_pos); returning donor-id-only table"
-        return (; geno = out_df, chr, tss, start_pos, end_pos,
+        return (; geno = out_df, positions = Int[], chr, tss, start_pos, end_pos,
                   n_samples_vcf = length(vcf_samples), n_samples_matched = n_samples,
                   n_variants_total = 0, n_multiallelic = 0, n_no_field = 0,
                   n_high_missing = 0, n_retained = 0)
@@ -319,6 +321,7 @@ function extract_geno_dataframe(; vcf::AbstractString,
     # ------------------------------ Parse variants ------------------------------ #
 
     variant_ids = String[]
+    variant_pos = Int[]
     columns = Vector{Float64}[]
     n_multiallelic = 0
     n_no_field = 0
@@ -350,6 +353,7 @@ function extract_geno_dataframe(; vcf::AbstractString,
         maf_i < maf && continue
 
         push!(variant_ids, vid)
+        push!(variant_pos, parse(Int, fields[2]))
         push!(columns, dosage)
     end
 
@@ -365,7 +369,7 @@ function extract_geno_dataframe(; vcf::AbstractString,
         out_df[!, vid] = col
     end
 
-    return (; geno = out_df, chr, tss, start_pos, end_pos,
+    return (; geno = out_df, positions = variant_pos, chr, tss, start_pos, end_pos,
               n_samples_vcf = length(vcf_samples), n_samples_matched = n_samples,
               n_variants_total = length(data_lines), n_multiallelic, n_no_field,
               n_high_missing, n_retained = length(variant_ids))

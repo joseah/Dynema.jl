@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Convenience launcher for dynema_prepare_bed.jl: activates the bundled CLI
+# environment (bin/Project.toml) automatically, so users only need Julia
+# installed -- no `Pkg` commands, no editing this script.
+#
+# Usage: ./bin/dynema-prepare-bed [options]      (run --help for the full list)
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec julia --project="$DIR" "$DIR/dynema_prepare_bed.jl" "$@"

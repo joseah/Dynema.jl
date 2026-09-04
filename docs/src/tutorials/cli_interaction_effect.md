@@ -37,7 +37,6 @@ input=demo_data
   --bed "$input/CTSS.bed" \
   --window 500000 \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
-  --contexts C1,C2,C3 \
   --interaction-with C1,C2,C3 \
   --donor-col donor_id \
   --cell-id-col cell_id \

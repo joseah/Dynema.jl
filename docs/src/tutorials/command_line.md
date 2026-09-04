@@ -15,6 +15,11 @@ self-contained command-line tool:
   builds a gene-major index (`.dgx`) next to a Matrix Market export, after
   which `dynema-map` loads any single gene in milliseconds instead of
   scanning the whole multi-GB matrix per run.
+- **`dynema-prepare-bed`** (optional, run once per study): builds
+  `dynema-map`'s bed-like gene file(s) from a GTF annotation -- keeping only
+  genes present in the expression data's features file, picking an
+  unambiguous identifier per gene, and optionally splitting into fixed-size
+  chunks for HPC batching.
 
 This script bootstraps its own Julia environment automatically the first
 time it's run (installing `Dynema` plus a handful of CLI-only
@@ -83,7 +88,6 @@ Here's a simple example just to illustrate the parameter usage (do not run):
   --bed "$input/CTSS.bed" \
   --window 500000 \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
-  --contexts C1,C2,C3 \
   --interaction-with C1,C2,C3 \
   --donor-col donor_id \
   --cell-id-col cell_id \
@@ -125,11 +129,15 @@ Arguments:
 - `donor-col`: Column name in metadata file including the donor ids. This must match the VCF donor ids too.
 - `cell-col`: Column name in metadata file including the cell ids/barcodes. This must match the barcodes 
   provided in the expression data.
-- `--contexts`: list of contexts to consider. Must be comma-separated and should match column names in 
-  metadata file.
-- `--effect`: Type of single-cell eQTL to test: main, interaction, or total
-- `--interaction-with`: indicates the interactions we want test for. Only necessary if a total or interaction
-effect is assessed. 
+- `--effect`: Type(s) of single-cell eQTL to test, comma-separated: any of
+  `main`, `interaction`, and `total` (e.g. `--effect main,interaction`).
+  Multiple effects share each gene's data extraction and write separate
+  files, `<out>_<effect>_<gene>.tsv`. In a multi-effect run, `main` uses the
+  classic model without G × context terms.
+- `--interaction-with`: comma-separated context column(s) in the metadata file to
+  test G × context interactions for; their main effects are added to the model
+  automatically. Required when `--effect` includes interaction/total. Contexts
+  you only want to adjust for (without an interaction) belong in `--covariates`.
 - `--out`: output *prefix*. Each gene writes its own summary statistics
   table named `<out>_<gene>.tsv` (or `<out><gene>.tsv` if the prefix ends in
   `/`; directories are created as needed; with no `--out`, just
@@ -145,7 +153,7 @@ For small datasets, quick checks, or genotypes pre-extracted with
 plain TSV/CSV tables with `--expr`/`--geno` instead of
 `--expr-prefix`/`--vcf` (no `--bed` needed: a pre-extracted genotype table
 already fixes its own variants). Everything else about
-`--meta`/`--covariates`/`--contexts`/`--effect`/`--interaction-with` works
+`--meta`/`--covariates`/`--effect`/`--interaction-with` works
 exactly the same way. For full-size data, prefer the indexed Matrix Market +
 VCF route above.
 
@@ -157,7 +165,6 @@ Here's a simple example just to illustrate the parameter usage (do not run):
   --meta "$input/meta.tsv" \
   --geno "$input/genotypes.tsv" \
   --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
-  --contexts C1,C2,C3 \
   --interaction-with C1,C2,C3 \
   --donor-col donor_id \
   --cell-id-col cell_id \
@@ -175,14 +182,21 @@ the `.dgx` index) the expression matrix are all loaded once per invocation,
 so per-gene overhead stays low. A gene that fails (e.g. absent from the
 features file) is reported and skipped without sinking the rest of the
 batch, and each gene writes its own `<out>_<gene>.tsv`. For example, with a
-genome-wide `genes.bed` split into 100-gene chunks:
+genome-wide study:
 
 ```bash
-split -l 100 genes.bed chunk_
+# once: build 100-gene chunk beds from your GTF, matched to your features file
+./bin/dynema-prepare-bed --gtf gencode.gtf.gz --features expr.features.gz \
+  --chunk-size 100 --out beds/chunk
+
 # then submit one job per chunk, e.g. (SLURM):
-#   ./bin/dynema-map --bed chunk_aa --expr-prefix expr --vcf genotypes.vcf.gz \
-#     ... --out main --log main_chunk_aa.log
+#   ./bin/dynema-map --bed beds/chunk_001.bed --expr-prefix expr --vcf genotypes.vcf.gz \
+#     ... --out main --log main_chunk_001.log
 ```
+
+Each invocation also writes `<out>_summary.tsv` -- one row per gene with its
+lead variant and statistics -- so concatenating the chunk summaries gives the
+study-wide top-associations table without parsing the per-gene files.
 
 ## Learn more
 

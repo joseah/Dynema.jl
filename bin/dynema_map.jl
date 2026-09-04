@@ -181,17 +181,13 @@ function parse_commandline()
             help = "Comma-separated list of column names in --meta to include as additive covariates (e.g. age,sex,nUMI,percent_mito,gPC1,gPC2)."
             arg_type = String
             default = ""
-        "--contexts"
-            help = "Comma-separated list of cell-state/context column names in --meta (e.g. C1,C2,C3). Always included as covariates. Required (and must be non-empty) when --effect is interaction/total, alongside --interaction-with."
-            arg_type = String
-            default = ""
         "--effect"
-            help = "Effect to test: 'main' (context-independent), 'interaction' (single- or multi-context), or 'total' (main + interaction jointly). Always required -- no default -- to avoid silently testing the wrong effect."
+            help = "Effect(s) to test, comma-separated: any of 'main' (context-independent), 'interaction' (single- or multi-context), and 'total' (main + interaction jointly), e.g. 'main,interaction,total'. Always required -- no default or shortcut -- so what is being tested is always explicit. Multiple effects share each gene's data extraction and write separate output files, <out>_<effect>_<gene>.tsv. In a multi-effect run, 'main' uses the classic model without G x context terms; a standalone --effect main can still adjust for (untested) interactions via --interaction-with."
             arg_type = String
             required = true
-            range_tester = x -> x in ("main", "interaction", "total")
+            range_tester = x -> !isempty(x) && all(t -> strip(t) in ("main", "interaction", "total"), split(x, ","))
         "--interaction-with"
-            help = "Comma-separated subset of --contexts to include as G-by-context interaction terms in the model. Required (and must be non-empty), alongside a non-empty --contexts, when --effect is interaction/total -- neither is ever defaulted or guessed. Optional with --effect main: if given there, the interaction terms are still added to the formula (e.g. to adjust for/include an interaction without testing it), just not tested."
+            help = "Comma-separated cell-state/context column names in --meta (e.g. C1,C2,C3) to include as G-by-context interaction terms; their main effects are added to the model automatically. Required (and must be non-empty) when --effect includes interaction/total -- never defaulted or guessed. Optional with a standalone --effect main: if given, the interaction terms are added to the formula (adjusted for) but not tested. Contexts you only want to adjust for (no interaction) belong in --covariates."
             default = nothing
         "--boot"
             help = "Also compute bootstrap p-values via adaptive score bootstrapping (recommended for small or imbalanced cohorts). Adds two columns: p_boot, the empirical bootstrap p-value (floored at ~2/B), and p_boot_approx, a FastQTL-style beta approximation fitted to the bootstrap distribution that extrapolates smoothly below that floor. Uses the optional WildBootTests package, installed automatically into the bin/ environment on first use."
@@ -218,7 +214,7 @@ function parse_commandline()
             arg_type = Int
             default = 0
         "--positions"
-            help = "Optional TSV/CSV with two columns (variant, position) giving genomic positions to attach to the output."
+            help = "Optional TSV/CSV with two columns (variant, position) giving genomic positions to attach to the output. Only needed with --geno: with --vcf, positions are taken from the VCF automatically (this file overrides them if given)."
             default = nothing
         "--out"
             help = "Output prefix. Each gene writes its own summary statistics table, named <out>_<gene>.tsv (or <out><gene>.tsv if the prefix ends with '/'; a trailing .tsv on the prefix is stripped; directories are created). Useful to distinguish analyses of the same genes, e.g. --out main vs --out interaction. Default: <gene>.tsv in the current directory."
@@ -243,33 +239,42 @@ splitcsv(x::AbstractString) = isempty(strip(x)) ? String[] : String.(strip.(spli
 readtable(path::AbstractString) = CSV.read(path, DataFrame)
 
 """
-    resolve_interactions(effect, contexts, interaction_with_arg) -> Vector{String}
+    resolve_interactions(effect, interaction_with_arg) -> Vector{String}
 
-Resolves the contexts that should actually appear as `G & context` terms in
+Resolves the context columns that should appear as `G & context` terms in
 the model formula (passed to `build_formula`, and used to validate --meta's
 columns before that):
 
 - If `--effect` is `interaction`/`total` (which always test at least one
-  `G & context` term), both `--contexts` and `--interaction-with` must be
-  given explicitly and non-empty -- errors immediately otherwise, rather
-  than guessing a set of interactions or silently modeling a G-by-context
-  interaction with no declared context main effects.
+  `G & context` term), `--interaction-with` must be given explicitly and
+  non-empty -- errors immediately otherwise, rather than guessing.
 - If `--effect` is `main`, `--interaction-with` is optional: given
-  explicitly, its contexts are still added to the formula (e.g. so
-  `--effect main --interaction-with CV1` can adjust for/include a G x CV1
-  interaction in the model without testing it); omitted, no interaction
-  terms at all are added.
+  explicitly, its interaction terms are still added to the formula (e.g. so
+  `--effect main --interaction-with CV1` can adjust for a G x CV1
+  interaction without testing it); omitted, no interaction terms are added.
+
+Every interaction context automatically gets a main-effect term in the
+model (see `build_formula`); contexts to adjust for *without* an
+interaction belong in `--covariates`.
 """
-function resolve_interactions(effect::String, contexts::Vector{String},
+function resolve_interactions(effect::String,
                                interaction_with_arg::Union{Nothing,Vector{String}})
 
-    needs_interaction = effect in ("interaction", "total")
-
-    if needs_interaction
-        isempty(contexts) &&
-            error("--effect $effect requires a non-empty --contexts (the context(s) to test G-by-context interactions for)")
+    if effect in ("interaction", "total")
         (interaction_with_arg === nothing || isempty(interaction_with_arg)) &&
-            error("--effect $effect requires --interaction-with (a non-empty, comma-separated subset of --contexts)")
+            error("--effect $effect requires --interaction-with (a non-empty, comma-separated " *
+                  "list of context columns to test G-by-context interactions for)")
+    end
+
+    # Duplicates within --interaction-with would create identical G & context
+    # terms (and a rank-deficient joint test). Error rather than silently
+    # deduplicate: the user must be explicit about which interactions are
+    # being tested.
+    if interaction_with_arg !== nothing
+        dupes = unique([c for c in interaction_with_arg if count(==(c), interaction_with_arg) > 1])
+        isempty(dupes) ||
+            error("--interaction-with lists context(s) more than once ($(join(dupes, ", "))); " *
+                  "each context to test must appear exactly once")
     end
 
     return interaction_with_arg === nothing ? String[] : interaction_with_arg
@@ -277,39 +282,28 @@ function resolve_interactions(effect::String, contexts::Vector{String},
 end
 
 """
-    build_formula(covariates, contexts, effect, interaction_with)
+    build_formula(covariates, effect, interaction_with)
 
 Builds a `FormulaTerm` and the `termtest` argument for `map_locus`
 programmatically (equivalent to writing e.g. `@formula(0 ~ 1 + G + C1 + G & C1)`
 by hand), from plain lists of column names supplied on the command line.
-`interaction_with` (see `resolve_interactions`) is always added to the
-formula as `G & context` terms when non-empty; only added to `termtest`
-(i.e. actually tested, alongside/instead of `G`) when `effect` is
-`interaction`/`total`.
-
-Any context named in `interaction_with` that isn't also in `contexts` is
-still given a main-effect term in the formula (a `G & context` interaction
-term without that context's own main effect would be an unusual, generally
-statistically improper model), and a warning is printed -- this most often
-means `--contexts`/`--interaction-with` have a typo relative to each other.
+Each context in `interaction_with` (see `resolve_interactions`) contributes
+both its main-effect term and a `G & context` term (an interaction without
+its main effect would be an unusual, generally statistically improper
+model); the interaction terms are only added to `termtest` (i.e. actually
+tested, alongside/instead of `G`) when `effect` is `interaction`/`total`.
 """
-function build_formula(covariates::Vector{String}, contexts::Vector{String},
+function build_formula(covariates::Vector{String},
                         effect::String, interaction_with::Vector{String})
 
-    extra_contexts = setdiff(interaction_with, contexts)
-    if !isempty(extra_contexts)
-        @warn "--interaction-with includes context(s) not in --contexts ($(join(extra_contexts, ", "))); " *
-              "adding them as main-effect covariates too, since an interaction term needs its main effect " *
-              "in the model. Double check --contexts/--interaction-with for a typo if this is unexpected."
-    end
-    all_contexts = union(contexts, interaction_with)
-
     rhs_terms = Any[term(1), term(:G)]
-    for c in covariates
+    for c in unique(covariates)
         push!(rhs_terms, term(Symbol(c)))
     end
-    for c in all_contexts
-        push!(rhs_terms, term(Symbol(c)))
+    # A context listed in both --covariates and --interaction-with (easy to
+    # do by mistake) is harmless: its main effect enters the model once.
+    for c in interaction_with
+        c in covariates || push!(rhs_terms, term(Symbol(c)))
     end
     for c in interaction_with
         push!(rhs_terms, term(:G) & term(Symbol(c)))
@@ -362,12 +356,21 @@ function run_map(args; term_size = displaysize(stdout))
         error("Provide exactly one of --expr (TSV/CSV) or --expr-prefix (Matrix Market)")
 
     covariates           = splitcsv(args["covariates"])
-    contexts             = splitcsv(args["contexts"])
     interaction_with_arg = args["interaction-with"] === nothing ? nothing : splitcsv(args["interaction-with"])
-    # Fails immediately (before any file loading below) if --effect
-    # interaction/total was given without a non-empty --interaction-with --
-    # see resolve_interactions's docstring.
-    interaction_with     = resolve_interactions(args["effect"], contexts, interaction_with_arg)
+
+    # Effects to test: a comma-separated subset of main/interaction/total.
+    # Each effect gets its own model; in a multi-effect run, 'main' is the
+    # classic main-effect model *without* G x context terms (matching a
+    # standalone --effect main run), while interaction/total include them.
+    effects = unique(String.(strip.(split(args["effect"], ","))))
+
+    # Fails immediately (before any file loading below) if interaction/total
+    # was requested without a non-empty --interaction-with -- see
+    # resolve_interactions's docstring.
+    effect_iw = Dict(e => resolve_interactions(e,
+                        (e == "main" && length(effects) > 1) ? nothing : interaction_with_arg)
+                     for e in effects)
+    all_iw = unique(reduce(vcat, values(effect_iw); init = String[]))
     variant_filter       = splitcsv(args["variants"])
     B                = parse.(Int, splitcsv(args["B"]))
     ptype            = Symbol(args["ptype"])
@@ -405,12 +408,12 @@ function run_map(args; term_size = displaysize(stdout))
     meta = readtable(args["meta"])
     id_col in names(meta) || error("--meta is missing cell-id column '$id_col'")
     donor_col in names(meta) || error("--meta is missing donor-id column '$donor_col'")
-    for c in vcat(covariates, union(contexts, interaction_with))
+    for c in vcat(covariates, all_iw)
         c in names(meta) || error("Column '$c' not found in --meta")
     end
     bullet("cell-id column: $id_col, donor-id column: $donor_col")
     isempty(covariates) || bullet("covariates: $(join(covariates, ", "))")
-    isempty(contexts) || bullet("contexts: $(join(contexts, ", "))")
+    isempty(all_iw) || bullet("interaction context(s): $(join(all_iw, ", "))")
     bullet("found $(nrow(meta)) cell(s)")
     bullet("found $(length(unique(meta[:, donor_col]))) donor(s)")
 
@@ -448,19 +451,29 @@ function run_map(args; term_size = displaysize(stdout))
         pos_map = Dict(zip(pos_df[:, 1], pos_df[:, 2]))
     end
 
-    # The model formula is gene-independent: build and report it once.
-    f, termtest = build_formula(covariates, contexts, args["effect"], interaction_with)
-    section("Model")
-    bullet("formula: $f")
-    bullet("testing term(s): $(termtest isa AbstractVector ? join(termtest, ", ") : termtest)")
+    # The model formulas are gene-independent: build and report them once.
+    models = map(effects) do e
+        f_e, tt_e = build_formula(covariates, e, effect_iw[e])
+        (effect = e, f = f_e, termtest = tt_e)
+    end
+    section(length(models) > 1 ? "Models" : "Model")
+    for mdl in models
+        bullet("[$(mdl.effect)] formula: $(mdl.f)")
+        bullet("testing term(s): $(mdl.termtest isa AbstractVector ? join(mdl.termtest, ", ") : mdl.termtest)", indent = 2)
+    end
 
     # ------------------------------ Output naming ----------------------------- #
 
     out_prefix = args["out"]
     endswith(out_prefix, ".tsv") && (out_prefix = out_prefix[1:end - 4])
-    outpath_for(glabel) = isempty(out_prefix) ? "$(glabel).tsv" :
-        endswith(out_prefix, "/") ? out_prefix * glabel * ".tsv" :
-        out_prefix * "_" * glabel * ".tsv"
+    # With a single effect, filenames stay <out>_<gene>.tsv; with several,
+    # the effect is included: <out>_<effect>_<gene>.tsv.
+    outpath_for(glabel, effect) = begin
+        tag = length(effects) > 1 ? "$(effect)_$(glabel)" : glabel
+        isempty(out_prefix) ? "$(tag).tsv" :
+            endswith(out_prefix, "/") ? out_prefix * tag * ".tsv" :
+            out_prefix * "_" * tag * ".tsv"
+    end
     outdir = dirname(out_prefix)
     isempty(outdir) || mkpath(outdir)
     endswith(out_prefix, "/") && mkpath(out_prefix)
@@ -474,6 +487,7 @@ function run_map(args; term_size = displaysize(stdout))
         # Genotypes first: --vcf extraction is normally much faster than an
         # unindexed Matrix Market scan, so genotype failures surface early.
         geno_t0 = time()
+        vcf_pos_map = nothing
         geno_df = if args["vcf"] !== nothing
             bullet("extracting genotypes from $(args["vcf"])")
             r = extract_geno_dataframe(
@@ -493,6 +507,7 @@ function run_map(args; term_size = displaysize(stdout))
             bullet("variants in region: $(r.n_variants_total); retained: $(r.n_retained) " *
                    "(skipped: $(r.n_multiallelic) multiallelic, $(r.n_no_field) missing GP/DS, " *
                    "$(r.n_high_missing) high-missingness)", indent = 2)
+            vcf_pos_map = Dict(zip(names(r.geno)[2:end], r.positions))
             r.geno
         else
             geno_table
@@ -560,50 +575,93 @@ function run_map(args; term_size = displaysize(stdout))
         geno_mat = Matrix(geno_df[:, snp_cols])
         ex_geno = expand_genotypes(geno_mat, donor_ids, meta[:, donor_col], snp_cols)
 
-        # -------------------------------- Run Dynema --------------------------- #
-
-        bullet("mapping $(length(snp_cols)) variant(s)...")
-        res = map_locus(f;
-            pheno = pheno,
-            geno = ex_geno,
-            meta = meta,
-            groups = meta[:, donor_col],
-            termtest = termtest,
-            parallel = args["parallel"] || args["workers"] > 0,
-            betas = Symbol(args["betas"]),
-            boot = args["boot"],
-            B = B,
-            ptype = ptype,
-            gene = gene_label,
-            chr = g === nothing ? nothing : g.chr,
-        )
-
-        # --------------------- Optional genomic positions ---------------------- #
-
-        if pos_map !== nothing
-            pos = get.(Ref(pos_map), snp_cols, missing)
+        # Positions: with --vcf they come from the VCF automatically; an
+        # explicit --positions file overrides them (and is the only source
+        # for --geno). Resolved once per gene, shared across effects.
+        effective_pos_map = pos_map !== nothing ? pos_map : vcf_pos_map
+        gene_pos = nothing
+        if effective_pos_map !== nothing
+            pos = get.(Ref(effective_pos_map), snp_cols, missing)
             if any(ismissing, pos)
                 missing_pos = snp_cols[ismissing.(pos)]
                 @warn "No position found for $(length(missing_pos)) variant(s) (e.g. $(first(missing_pos))); positions not attached"
             else
-                set_pos!(res, Int.(pos))
+                gene_pos = Int.(pos)
             end
         end
 
-        # Dynema only defines the MIME"text/plain" show method (used for REPL
-        # auto-display), so invoke it explicitly to get the pretty-printed
-        # summary instead of Julia's generic struct fallback.
-        show(IOContext(stdout, :displaysize => term_size), MIME("text/plain"), res)
-        println()
+        # ------------------------- Run Dynema (per effect) ---------------------- #
 
-        # ------------------------------ Write output --------------------------- #
+        rows = NamedTuple[]
+        for mdl in models
+            tag = length(models) > 1 ? "[$(mdl.effect)] " : ""
+            try
+                bullet("$(tag)mapping $(length(snp_cols)) variant(s)...")
+                res = map_locus(mdl.f;
+                    pheno = pheno,
+                    geno = ex_geno,
+                    meta = meta,
+                    groups = meta[:, donor_col],
+                    termtest = mdl.termtest,
+                    parallel = args["parallel"] || args["workers"] > 0,
+                    betas = Symbol(args["betas"]),
+                    boot = args["boot"],
+                    B = B,
+                    ptype = ptype,
+                    gene = gene_label,
+                    chr = g === nothing ? nothing : g.chr,
+                )
+                gene_pos === nothing || set_pos!(res, gene_pos)
 
-        summ = get_summary(res)
-        outpath = outpath_for(gene_label)
-        CSV.write(outpath, summ; delim = '\t')
-        bullet("wrote summary statistics for $(nrow(summ)) variant(s) to $outpath")
+                # Dynema only defines the MIME"text/plain" show method (used
+                # for REPL auto-display), so invoke it explicitly to get the
+                # pretty-printed summary instead of Julia's generic fallback.
+                show(IOContext(stdout, :displaysize => term_size), MIME("text/plain"), res)
+                println()
 
-        return nothing
+                summ = copy(get_summary(res))
+                if get_pos(res) !== nothing
+                    insertcols!(summ, 2, :pos => get_pos(res))
+                    g === nothing || insertcols!(summ, 2, :chr => fill(g.chr, nrow(summ)))
+                end
+                outpath = outpath_for(gene_label, mdl.effect)
+                CSV.write(outpath, summ; delim = '\t')
+                bullet("$(tag)wrote summary statistics for $(nrow(summ)) variant(s) to $outpath")
+
+                # One summary row per gene x effect, for the batch summary table.
+                li = argmin(summ.p)
+                statcol = get_stattype(res)
+                push!(rows, (gene = gene_label,
+                    effect = mdl.effect,
+                    status = "ok",
+                    chr = g === nothing ? missing : g.chr,
+                    tss = g === nothing ? missing : g.tss,
+                    n_variants = nrow(summ),
+                    lead_variant = summ.variant[li],
+                    lead_pos = "pos" in names(summ) ? summ.pos[li] : missing,
+                    stat_type = statcol,
+                    lead_stat = summ[li, statcol],
+                    lead_p = summ.p[li],
+                    lead_p_boot = "p_boot" in names(summ) ? summ.p_boot[li] : missing,
+                    lead_p_boot_approx = "p_boot_approx" in names(summ) ? summ.p_boot_approx[li] : missing,
+                    out_file = outpath))
+            catch err
+                # Single gene + single effect: fail loudly (rethrown again by
+                # the batch loop); otherwise one failed effect must not sink
+                # the others.
+                (length(batch) == 1 && length(models) == 1) && rethrow()
+                bt = catch_backtrace()
+                @warn "Mapping failed for gene $gene_label, effect $(mdl.effect); continuing" exception = (err, bt)
+                push!(rows, (gene = gene_label, effect = mdl.effect, status = "failed",
+                    chr = g === nothing ? missing : g.chr,
+                    tss = g === nothing ? missing : g.tss,
+                    n_variants = missing, lead_variant = missing, lead_pos = missing,
+                    stat_type = missing, lead_stat = missing, lead_p = missing,
+                    lead_p_boot = missing, lead_p_boot_approx = missing, out_file = missing))
+            end
+        end
+
+        return rows
 
     end
 
@@ -612,14 +670,16 @@ function run_map(args; term_size = displaysize(stdout))
     batch = genes === nothing ? [nothing] : genes
     n_ok = 0
     failed = String[]
+    gene_rows = NamedTuple[]
     batch_t0 = time()
 
     for (gi, g) in enumerate(batch)
         glabel = g === nothing ? "single --expr gene" : g.gene
         section(length(batch) > 1 ? "Gene $glabel [$gi/$(length(batch))]" : "Gene $glabel")
         try
-            map_gene(g)
-            n_ok += 1
+            rows = map_gene(g)
+            append!(gene_rows, rows)
+            all(r -> r.status == "ok", rows) ? (n_ok += 1) : push!(failed, glabel)
         catch err
             # For a single-gene run, fail loudly (as before); in a batch, one
             # bad gene (e.g. absent from the features file) must not sink the
@@ -628,12 +688,30 @@ function run_map(args; term_size = displaysize(stdout))
             bt = catch_backtrace()
             @warn "Mapping failed for gene $glabel; continuing with the remaining genes" exception = (err, bt)
             push!(failed, glabel)
+            for mdl in models
+                push!(gene_rows, (gene = glabel, effect = mdl.effect, status = "failed",
+                    chr = g === nothing ? missing : g.chr,
+                    tss = g === nothing ? missing : g.tss,
+                    n_variants = missing, lead_variant = missing, lead_pos = missing,
+                    stat_type = missing, lead_stat = missing, lead_p = missing,
+                    lead_p_boot = missing, lead_p_boot_approx = missing, out_file = missing))
+            end
         end
     end
 
+    # ------------------------- Batch-level gene summary ------------------------- #
+
+    # One row per gene (lead variant and its statistics), so a batch's -- or,
+    # concatenated across chunks, a whole study's -- top associations can be
+    # inspected without parsing every per-gene table.
+    summary_path = isempty(out_prefix) ? "dynema_summary.tsv" :
+        endswith(out_prefix, "/") ? out_prefix * "summary.tsv" : out_prefix * "_summary.tsv"
+    CSV.write(summary_path, DataFrame(gene_rows); delim = '\t')
+
     section("Done")
-    bullet("$n_ok/$(length(batch)) gene(s) mapped successfully in $(elapsed_str(batch_t0))")
-    isempty(failed) || bullet("failed: $(join(failed, ", "))")
+    bullet("$n_ok/$(length(batch)) gene(s) fully mapped ($(join(effects, ", "))) in $(elapsed_str(batch_t0))")
+    isempty(failed) || bullet("gene(s) with failures: $(join(failed, ", "))")
+    bullet("per-gene summary (lead variants): $summary_path")
 
 end
 

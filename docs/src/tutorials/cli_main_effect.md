@@ -32,7 +32,7 @@ The `meta.tsv` has one row per cell, with columns:
 
 ## Run it
 
-`--effect main` tests the main effect alone, adjusted for the covariates and contexts (no interactions):
+`--effect main` tests the main effect alone, adjusted for the covariates -- including the cell-state contexts `C1,C2,C3`, which enter the model as ordinary covariates here since no interaction is tested:
 
 ```bash
 input=demo_data
@@ -44,8 +44,7 @@ input=demo_data
   --vcf "$input/genotypes.vcf.gz" \
   --bed "$input/CTSS.bed" \
   --window 500000 \
-  --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5 \
-  --contexts C1,C2,C3 \
+  --covariates scaled_age,sex,scaled_log_nUMI,percent_mito,gPC1,gPC2,gPC3,gPC4,gPC5,ePC1,ePC2,ePC3,ePC4,ePC5,C1,C2,C3 \
   --donor-col donor_id \
   --cell-id-col cell_id \
   --effect main \
