@@ -216,6 +216,12 @@ function parse_commandline()
         "--positions"
             help = "Optional TSV/CSV with two columns (variant, position) giving genomic positions to attach to the output. Only needed with --geno: with --vcf, positions are taken from the VCF automatically (this file overrides them if given)."
             default = nothing
+        "--skip-existing"
+            help = "Skip any gene x effect whose output file already exists -- lets a killed or partially completed batch job be resubmitted without recomputing finished genes. Skipped entries appear in the batch summary with status 'skipped' (lead statistics re-read from the existing file when possible)."
+            action = :store_true
+        "--check"
+            help = "Validate all inputs and exit without mapping: files exist and parse, metadata columns are present, every --bed gene is found in the expression data, the annotation's chromosomes exist in the VCF index, and metadata donors are covered by the VCF samples. Run this before submitting large batches."
+            action = :store_true
         "--out"
             help = "Output prefix. Each gene writes its own summary statistics table, named <out>_<gene>.tsv (or <out><gene>.tsv if the prefix ends with '/'; a trailing .tsv on the prefix is stripped; directories are created). Useful to distinguish analyses of the same genes, e.g. --out main vs --out interaction. Default: <gene>.tsv in the current directory."
             arg_type = String
@@ -478,9 +484,126 @@ function run_map(args; term_size = displaysize(stdout))
     isempty(outdir) || mkpath(outdir)
     endswith(out_prefix, "/") && mkpath(out_prefix)
 
+    # ------------------------------- Check mode -------------------------------- #
+
+    # --check: validate everything a batch job will need -- in seconds, without
+    # mapping -- so a typo fails one interactive command instead of a hundred
+    # submitted jobs. Hard failures above (missing files, bad meta columns,
+    # malformed bed) have already surfaced by this point; here the per-gene
+    # and cross-file consistency checks run, accumulating every problem found.
+    if args["check"]
+        section("Check mode (--check): validating inputs without mapping")
+        issues = String[]
+
+        # Expression: every bed gene must be resolvable
+        if expr_table === nothing
+            feats = Dynema.read_feature_fields(features)
+            isfile(Dynema.dgx_sidecar_path(mtx)) ||
+                bullet("note: no .dgx index next to $mtx -- each gene will trigger a full matrix scan; run dynema-prepare-expr once")
+            for g in (genes === nothing ? [] : genes)
+                try
+                    Dynema.match_feature_row(feats, g.gene; features_path = String(features))
+                catch err
+                    push!(issues, "expression: $(sprint(showerror, err))")
+                end
+            end
+        elseif genes !== nothing
+            expr_gene_cols = setdiff(names(expr_table), [id_col])
+            for g in genes
+                nhits = count(c -> Dynema.stripver(c) == Dynema.stripver(g.gene), expr_gene_cols)
+                nhits == 1 ||
+                    push!(issues, "expression: gene '$(g.gene)' matches $nhits column(s) of --expr")
+            end
+        end
+
+        # Genotypes: index, chromosomes, and donor coverage
+        if args["vcf"] !== nothing
+            try
+                isfile(args["vcf"]) || error("VCF not found: $(args["vcf"])")
+                (isfile(args["vcf"] * ".tbi") || isfile(args["vcf"] * ".csi")) ||
+                    error("no tabix index (.tbi/.csi) next to $(args["vcf"])")
+                for c in unique([g.chr for g in genes])
+                    try
+                        Dynema.verify_chr(args["vcf"], c)
+                    catch err
+                        push!(issues, "vcf: $(sprint(showerror, err))")
+                    end
+                end
+                vsamples = Dynema.vcf_samples(args["vcf"])
+                donor_set = if args["samples"] !== nothing
+                    smap = readtable(args["samples"])
+                    for c in ("vcf_id", "donor_id")
+                        c in names(smap) || error("--samples is missing required column '$c'")
+                    end
+                    Set(smap.donor_id[map(v -> v in Set(vsamples), smap.vcf_id)])
+                else
+                    Set(vsamples)
+                end
+                missing_donors = setdiff(unique(meta[:, donor_col]), donor_set)
+                isempty(missing_donors) ||
+                    push!(issues, "donors: $(length(missing_donors)) --meta donor(s) have no genotype " *
+                                  "(e.g. $(join(first(collect(missing_donors), 3), ", "))); check --vcf/--samples")
+            catch err
+                push!(issues, "vcf: $(sprint(showerror, err))")
+            end
+        else
+            missing_donors = setdiff(unique(meta[:, donor_col]), geno_table[:, donor_col])
+            isempty(missing_donors) ||
+                push!(issues, "donors: $(length(missing_donors)) --meta donor(s) missing from --geno " *
+                              "(e.g. $(join(first(collect(missing_donors), 3), ", ")))")
+        end
+
+        if isempty(issues)
+            bullet("all checks passed -- ready to map $(genes === nothing ? 1 : length(genes)) gene(s) x $(length(effects)) effect(s)")
+            return
+        end
+        for i in issues
+            bullet("PROBLEM: $i")
+        end
+        error("--check found $(length(issues)) problem(s); nothing was mapped")
+    end
+
+    # --------------------------- Resume support helpers ------------------------- #
+
+    # Summary row for a gene x effect skipped via --skip-existing: lead
+    # statistics are re-read from the existing output so a resumed batch still
+    # produces a complete summary table.
+    function skipped_row(glabel, g, effect, path)
+        base = (gene = glabel, effect = effect, status = "skipped",
+                chr = g === nothing ? missing : g.chr,
+                tss = g === nothing ? missing : g.tss)
+        try
+            df = readtable(path)
+            li = argmin(df.p)
+            statcol_i = findfirst(c -> c in ("z", "χ²"), names(df))
+            statcol = statcol_i === nothing ? nothing : names(df)[statcol_i]
+            return merge(base, (n_variants = nrow(df),
+                lead_variant = df.variant[li],
+                lead_pos = "pos" in names(df) ? df.pos[li] : missing,
+                stat_type = statcol === nothing ? missing : statcol,
+                lead_stat = statcol === nothing ? missing : df[li, statcol],
+                lead_p = df.p[li],
+                lead_p_boot = "p_boot" in names(df) ? df.p_boot[li] : missing,
+                lead_p_boot_approx = "p_boot_approx" in names(df) ? df.p_boot_approx[li] : missing,
+                out_file = path))
+        catch
+            return merge(base, (n_variants = missing, lead_variant = missing, lead_pos = missing,
+                stat_type = missing, lead_stat = missing, lead_p = missing,
+                lead_p_boot = missing, lead_p_boot_approx = missing, out_file = path))
+        end
+    end
+
     # -------------------------------- Map one gene ---------------------------- #
 
     function map_gene(g)
+
+        # --skip-existing: when every requested effect's output already
+        # exists, skip the gene before paying for any extraction.
+        if args["skip-existing"] && g !== nothing &&
+           all(isfile(outpath_for(g.gene, mdl.effect)) for mdl in models)
+            bullet("all output file(s) already exist; skipping (--skip-existing)")
+            return [skipped_row(g.gene, g, mdl.effect, outpath_for(g.gene, mdl.effect)) for mdl in models]
+        end
 
         gene = g === nothing ? nothing : g.gene
 
@@ -595,6 +718,12 @@ function run_map(args; term_size = displaysize(stdout))
         rows = NamedTuple[]
         for mdl in models
             tag = length(models) > 1 ? "[$(mdl.effect)] " : ""
+            outpath = outpath_for(gene_label, mdl.effect)
+            if args["skip-existing"] && isfile(outpath)
+                bullet("$(tag)$outpath exists; skipping (--skip-existing)")
+                push!(rows, skipped_row(gene_label, g, mdl.effect, outpath))
+                continue
+            end
             try
                 bullet("$(tag)mapping $(length(snp_cols)) variant(s)...")
                 res = map_locus(mdl.f;
@@ -624,7 +753,6 @@ function run_map(args; term_size = displaysize(stdout))
                     insertcols!(summ, 2, :pos => get_pos(res))
                     g === nothing || insertcols!(summ, 2, :chr => fill(g.chr, nrow(summ)))
                 end
-                outpath = outpath_for(gene_label, mdl.effect)
                 CSV.write(outpath, summ; delim = '\t')
                 bullet("$(tag)wrote summary statistics for $(nrow(summ)) variant(s) to $outpath")
 
@@ -679,7 +807,7 @@ function run_map(args; term_size = displaysize(stdout))
         try
             rows = map_gene(g)
             append!(gene_rows, rows)
-            all(r -> r.status == "ok", rows) ? (n_ok += 1) : push!(failed, glabel)
+            all(r -> r.status in ("ok", "skipped"), rows) ? (n_ok += 1) : push!(failed, glabel)
         catch err
             # For a single-gene run, fail loudly (as before); in a batch, one
             # bad gene (e.g. absent from the features file) must not sink the
@@ -710,6 +838,8 @@ function run_map(args; term_size = displaysize(stdout))
 
     section("Done")
     bullet("$n_ok/$(length(batch)) gene(s) fully mapped ($(join(effects, ", "))) in $(elapsed_str(batch_t0))")
+    n_skipped = count(r -> r.status == "skipped", gene_rows)
+    n_skipped > 0 && bullet("$n_skipped gene x effect output(s) skipped (--skip-existing)")
     isempty(failed) || bullet("gene(s) with failures: $(join(failed, ", "))")
     bullet("per-gene summary (lead variants): $summary_path")
 

@@ -151,6 +151,28 @@ function verify_chr(vcf::AbstractString, chr::AbstractString)
 end
 
 """
+    vcf_samples(vcf) -> Vector{String}
+
+Sample names from `vcf`'s header (the #CHROM line), read via `tabix -H`
+without touching any variant data. Internal helper (used by dynema-map's
+--check mode); not exported.
+"""
+function vcf_samples(vcf::AbstractString)
+    isfile(vcf) || error("VCF file not found: $vcf")
+    out = try
+        htslib_jll.tabix() do tabix_exe
+            read(`$tabix_exe -H $vcf`, String)
+        end
+    catch e
+        error("tabix failed to read the header of $vcf: $e")
+    end
+    lines = split(out, '\n'; keepempty = false)
+    i = findlast(l -> startswith(l, "#CHROM"), lines)
+    i === nothing && error("No #CHROM header line found in $vcf")
+    return String.(split(lines[i], '\t'))[VCF_SAMPLE_START:end]
+end
+
+"""
     run_tabix(vcf, chr, start_pos, end_pos; verbose=true) -> (header_fields, data_lines)
 
 Uses the `tabix` executable bundled by `htslib_jll` to fetch the VCF header

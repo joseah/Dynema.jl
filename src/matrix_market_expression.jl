@@ -72,6 +72,47 @@ function read_feature_fields(path::AbstractString)
 end
 
 """
+    match_feature_row(feats, gene; features_path = "the features file") -> Int
+
+Finds `gene`'s row among parsed features rows (see
+[`read_feature_fields`](@ref)). Two supported layouts:
+
+  - single column (e.g. a Seurat export): gene names only -- `gene` must
+    match that column;
+  - 10x layout (gene_id, gene_name[, modality]): `gene` is searched against
+    gene_name (column 2) first; if nothing matches, it is assumed to be a
+    gene id and searched against column 1.
+
+Ensembl id version suffixes are ignored; no match, or an ambiguous match, is
+an error (`features_path` names the file in messages). Internal helper for
+`extract_gene_expression` and the CLI's --check mode; not exported.
+"""
+function match_feature_row(feats::Vector{Vector{String}}, gene::AbstractString;
+                           features_path::AbstractString = "the features file")
+
+    g = stripver(gene)
+    findmatches(col) = findall(row -> length(row) >= col && stripver(row[col]) == g, feats)
+    tenx = any(row -> length(row) >= 2, feats)
+
+    row_matches, searched = if tenx
+        m = findmatches(2)
+        isempty(m) ? (findmatches(1), "gene_id (column 1)") : (m, "gene_name (column 2)")
+    else
+        (findmatches(1), "gene name")
+    end
+    isempty(row_matches) &&
+        error(tenx ?
+            "Gene '$gene' not found in $features_path (searched gene_name -- column 2 -- then gene_id -- column 1)" :
+            "Gene '$gene' not found in $features_path")
+    length(row_matches) > 1 &&
+        error("Gene '$gene' matches $(length(row_matches)) rows in $features_path ($searched); " *
+              "provide its unique gene id instead")
+
+    return row_matches[1]
+
+end
+
+"""
     resolve_mtx_triplet(prefix) -> (mtx, features, barcodes)
 
 Given a filename prefix (e.g. `"expr_0.05"`), resolves the three companion
@@ -481,32 +522,7 @@ function extract_gene_expression(; mtx::AbstractString, features::AbstractString
     printlnv("Reading gene list from $features..."; verbose)
     feats = read_feature_fields(features)
     n_genes = length(feats)
-
-    # Two supported features layouts:
-    #   - single column (e.g. a Seurat export): gene names only -- `gene` must
-    #     match that column;
-    #   - 10x layout (gene_id, gene_name[, modality]): `gene` is searched
-    #     against gene_name (column 2) first; if nothing matches, it is
-    #     assumed to be a gene id and searched against column 1.
-    # Ensembl id version suffixes are ignored in comparisons.
-    g = stripver(gene)
-    findmatches(col) = findall(row -> length(row) >= col && stripver(row[col]) == g, feats)
-    tenx = any(row -> length(row) >= 2, feats)
-
-    row_matches, searched = if tenx
-        m = findmatches(2)
-        isempty(m) ? (findmatches(1), "gene_id (column 1)") : (m, "gene_name (column 2)")
-    else
-        (findmatches(1), "gene name")
-    end
-    isempty(row_matches) &&
-        error(tenx ?
-            "Gene '$gene' not found in $features (searched gene_name -- column 2 -- then gene_id -- column 1)" :
-            "Gene '$gene' not found in $features")
-    length(row_matches) > 1 &&
-        error("Gene '$gene' matches $(length(row_matches)) rows in $features ($searched); " *
-              "provide its unique gene id instead")
-    target_row = row_matches[1]
+    target_row = match_feature_row(feats, gene; features_path = features)
 
     printlnv("Reading cell barcodes from $barcodes..."; verbose)
     cell_ids = read_labels(barcodes)

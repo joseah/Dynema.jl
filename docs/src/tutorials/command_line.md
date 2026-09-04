@@ -194,9 +194,19 @@ genome-wide study:
 #     ... --out main --log main_chunk_001.log
 ```
 
-Each invocation also writes `<out>_summary.tsv` -- one row per gene with its
-lead variant and statistics -- so concatenating the chunk summaries gives the
-study-wide top-associations table without parsing the per-gene files.
+Each invocation also writes `<out>_summary.tsv` -- one row per gene × effect
+with its lead variant and statistics -- so concatenating the chunk summaries
+gives the study-wide top-associations table without parsing the per-gene
+files.
+
+Two flags make large batches safer: run once with `--check` before
+submitting -- it validates everything in seconds (files parse, metadata
+columns exist, every gene is found in the expression data, chromosomes match
+the VCF index, all metadata donors have genotypes) and exits without
+mapping; and submit jobs with `--skip-existing` so a killed or partially
+completed job can simply be resubmitted -- finished gene × effect outputs
+are skipped (their lead statistics re-read into the summary) and only the
+remaining work runs.
 
 ## Learn more
 
